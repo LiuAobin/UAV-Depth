@@ -1,0 +1,10 @@
+data_format = 'kitti_raw'
+origin_data_dir = 'E:/origin_dataset/KITTI'
+dump_dir = 'E:/target_dataset/SC-Depth/KITTI'
+static_frames = './configs/kitti/static_frames.txt'
+test_scenes = './configs/kitti/test_scenes.txt'
+with_depth = True
+with_pose = True
+height = 256
+width = 832
+depth_size_ratio = 1
