@@ -1,12 +1,13 @@
 ### Example user template template
 ### Example user template
-
+test
+work_dirs
 # IntelliJ project files
 .idea
 *.iml
 out
 gen
-test
+
 ### Python template
 # Byte-compiled / optimized / DLL files
 __pycache__/
