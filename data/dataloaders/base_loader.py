@@ -25,6 +25,10 @@ class BaseLoader(object):
     def collect_scenes(self,drive):
         pass
 
-    def generate_depth_map(self,scene_data,tgt_idx):
-        # 生成深度图
+    def get_scene_imgs(self,scene_data):
+        """
+        获取指定场景的所有图像
+        :param scene_data: 场景数据
+        :yield: 处理后的图像及帧ID，以及其他相关信息
+        """
         pass

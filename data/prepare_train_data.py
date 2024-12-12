@@ -5,14 +5,14 @@ from glob import glob
 import imageio.v2
 import numpy as np  # 用于数值计算和数组处理
 from pebble import ProcessPool  # 用于并行处理
-from tqdm import tqdm  # 用于现实进度条
+from tqdm import tqdm  # 用于实现进度条
 
-from utils import create_parser, check_dir, update_config
-
+from system.utils import check_dir
+from utils import create_parser, update_config
+from data.dataloaders import dataloader_map
 """
 用于处理深度数据集，将每个场景的图像和相关信息保存到指定位置，并生成训练和验证的文件列表
-验证集与测试集依照<https://github.com/JiawangBian/SC-SfMLearner-Release>进行划分
-
+验证集与测试集依照<https://github.com/JiawangBian/SC-SfMLearner-Release>进行处理
 """
 
 
@@ -68,13 +68,8 @@ def main():
     args = update_config(args)
     print(args.__dict__)
     check_dir(args.dump_dir)  # 创建存储预处理数据结果的根目录
-    global data_loader  # 声明全局变量
 
-    # TODO 根据不同的数据集格式加载不同的数据加载器
-    if args.data_format == 'kitti_raw':
-        from data.dataloaders import KittiRawLoader
-        data_loader = KittiRawLoader(args)
-
+    data_loader = dataloader_map[args.data_format](args)
     n_scenes = len(data_loader.scenes)  # 获取场景数量
     print(f'Found {n_scenes} potential scenes')
     print('Retrieving frames')

@@ -1,4 +1,4 @@
-import os.path
+import os
 from collections import Counter
 from glob import glob
 
@@ -36,8 +36,7 @@ class KittiRawLoader(BaseLoader):
     def collect_train_folders(self):
         """
         收集训练文件夹
-        :return:
-        :rtype:
+        :return: 完整的文件目录列表
         """
         self.scenes = []
         for date in self.date_list:

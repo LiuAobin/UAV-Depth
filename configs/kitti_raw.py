@@ -1,7 +1,9 @@
 exp_name = 'kitti_scv1'
+data = 'E:/Depth/target_dataset/SC-Depth/KITTI'
+folder_type = 'sequence'
 dataset_name = 'kitti'
 resnet_layers = 18
 lr = 1e-4
 batch_size = 4
-num_epochs = 100
+epochs = 100
 epoch_size = 1000

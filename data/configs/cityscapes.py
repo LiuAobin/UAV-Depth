@@ -5,3 +5,4 @@ height = 342
 width = 832
 depth_size_ratio = 1
 split = 'train'
+crop_bottom=True

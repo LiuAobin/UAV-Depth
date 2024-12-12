@@ -1,0 +1,11 @@
+dataset_name = 'kitti'
+dataset_path = 'E:/Depth/target_dataset/SC-Depth/KITTI'
+folder_type = 'sequence'
+load_pseudo_depth = False
+model = 'sc-depth-pl'
+exp_name = 'sc-depth-pl-kitti'
+val_model = 'photo'
+use_frame_index = False
+height = 256
+width = 832
+epoch_size=2000
