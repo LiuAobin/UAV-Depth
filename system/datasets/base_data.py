@@ -6,7 +6,7 @@ from .custom_transforms import (Compose, Normalize, ArrayToTensor,
 from .train_folders import TrainSet
 from .test_folders import TestSet
 from .validation_folders import ValidationSet
-
+dataset_map = {}
 
 class BaseDataModule(LightningDataModule):
     """
@@ -29,6 +29,9 @@ class BaseDataModule(LightningDataModule):
         """
         super().__init__()
         # 保存超参数
+        self.train_dataset = None
+        self.val_dataset = None
+        self.test_dataset = None
         self.save_hyperparameters()
         self.cfg = cfg
         # 获取训练数据大小
@@ -69,7 +72,16 @@ class BaseDataModule(LightningDataModule):
         :return:
         """
         # 训练数据集
-        self.train_dataset = TrainSet(
+        self.train_dataset = self.get_train_dataset()
+        self.val_dataset = self.get_val_dataset()
+        # 加载测试数据集
+        self.test_dataset = self.get_test_dataset()
+        print(f'train size: {len(self.train_dataset)}')
+        print(f'val size: {len(self.val_dataset)}')
+        print(f'test size: {len(self.test_dataset)}')
+
+    def get_train_dataset(self):
+        return TrainSet(
             root=self.cfg.dataset_dir,
             train=True,
             sequence_length=self.cfg.sequence_length,
@@ -78,16 +90,15 @@ class BaseDataModule(LightningDataModule):
             dataset=self.cfg.dataset_name,
             use_frame_index=self.cfg.use_frame_index,
             with_pseudo_depth=self.load_pseudo_depth,
+            img_suffix=self.cfg.img_suffix,
+            depth_suffix=self.cfg.depth_suffix,
         )
+
+
+    def get_val_dataset(self):
         # 验证数据集——分两种，验证深度或光度损失
-        if self.cfg.val_mode == 'depth':
-            self.val_dataset = ValidationSet(
-                root=self.cfg.dataset_dir,
-                transform=self.valid_transform,
-                dataset=self.cfg.dataset_name,
-            )
-        elif self.cfg.val_mode == 'photo':
-            self.val_dataset = TrainSet(
+        if self.cfg.val_mode == 'photo':
+            return TrainSet(
                 root=self.cfg.dataset_dir,
                 train=False,
                 sequence_length=self.cfg.sequence_length,
@@ -95,9 +106,11 @@ class BaseDataModule(LightningDataModule):
                 skip_frames=self.cfg.skip_frames,
                 use_frame_index=self.cfg.use_frame_index,
                 with_pseudo_depth=False,
+                img_suffix=self.cfg.img_suffix,
+                depth_suffix=self.cfg.depth_suffix,
             )
         else:
-            self.val_dataset = TrainSet(
+            return TrainSet(
                 root=self.cfg.dataset_dir,
                 train=False,
                 sequence_length=self.cfg.sequence_length,
@@ -105,16 +118,18 @@ class BaseDataModule(LightningDataModule):
                 skip_frames=self.cfg.skip_frames,
                 use_frame_index=self.cfg.use_frame_index,
                 with_pseudo_depth=False,
+                img_suffix=self.cfg.img_suffix,
+                depth_suffix=self.cfg.depth_suffix,
             )
-        # 加载测试数据集
-        self.test_dataset = TestSet(
+
+    def get_test_dataset(self):
+        return TestSet(
             root=self.cfg.dataset_dir,
             transform=self.test_transform,
-            dataset=self.cfg.dataset_name
+            dataset=self.cfg.dataset_name,
+            img_suffix=self.cfg.img_suffix,
+            depth_suffix=self.cfg.depth_suffix,
         )
-        print(f'train size: {len(self.train_dataset)}')
-        print(f'val size: {len(self.val_dataset)}')
-        print(f'test size: {len(self.test_dataset)}')
 
     def train_dataloader(self):
         """

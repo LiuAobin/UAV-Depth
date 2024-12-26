@@ -14,7 +14,7 @@ class BaseLoader(object):
         :type config:
         """
         self.config = config
-        self.dataset_dir = config.origin_data_dir  # 设置原始数据路径
+        self.dataset_dir = config.dataset_dir  # 设置原始数据路径
         self.img_width = config.width  # 设置图像宽度
         self.img_height = config.height  # 设置图像高度
         self.min_speed = config.min_speed  # 设置最小速度

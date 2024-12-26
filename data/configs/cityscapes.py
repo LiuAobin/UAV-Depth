@@ -1,8 +1,9 @@
 data_format = 'cityscapes'
-origin_data_dir = 'E:/Depth_Estimation/cityscapes'
-dump_dir = 'E:/target_dataset/SC-Depth/cityscapes'
-height = 342
-width = 832
+dataset_dir = 'E:/Depth/origin-dataset/cityscapes'
+dump_dir = 'E:/Depth/target_dataset/SC-Depth/cityscapes'
+height = 1024
+width = 2048
 depth_size_ratio = 1
-split = 'train'
-crop_bottom=True
+split = 'test'
+crop_bottom = False
+num_threads = 4

@@ -17,11 +17,11 @@ class TestSet(Dataset):
         dataset (str): 数据集名称，支持 'nyu', 'kitti', 'ddad'。默认为 'nyu'。
     """
 
-    def __init__(self, root, transform=None, dataset='nyu'):
+    def __init__(self, root, transform=None, dataset='nyu',img_suffix='*.png',depth_suffix='*.png'):
         self.root = Path(root).joinpath('testing')
         self.transform = transform
         self.dataset = dataset
-        self.imgs, self.depths = crawl_folder(self.root, self.dataset)
+        self.imgs, self.depths = crawl_folder(self.root, self.dataset,img_suffix=img_suffix,depth_suffix=depth_suffix)
 
     def __getitem__(self, index):
         """

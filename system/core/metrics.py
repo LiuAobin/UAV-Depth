@@ -1,282 +1,94 @@
-import cv2
-import numpy as np
 import torch
-
-try:
-    import lpips
-    from skimage.metrics import structural_similarity as cal_ssim
-except:
-    lpips = None
-    cal_ssim = None
-
-
-def rescale(x):
-    return (x - x.max()) / (x.max() - x.min()) * 2 - 1
-
-def _threshold(x, y, t):
-    t = np.greater_equal(x, t).astype(np.float32)
-    p = np.greater_equal(y, t).astype(np.float32)
-    is_nan = np.logical_or(np.isnan(x), np.isnan(y))
-    t = np.where(is_nan, np.zeros_like(t, dtype=np.float32), t)
-    p = np.where(is_nan, np.zeros_like(p, dtype=np.float32), p)
-    return t, p
-
-def MAE(pred, true, spatial_norm=False):
-    if not spatial_norm:
-        return np.mean(np.abs(pred-true), axis=(0, 1)).sum()
-    else:
-        norm = pred.shape[-1] * pred.shape[-2] * pred.shape[-3]
-        return np.mean(np.abs(pred-true) / norm, axis=(0, 1)).sum()
-
-
-def MSE(pred, true, spatial_norm=False):
-    if not spatial_norm:
-        return np.mean((pred-true)**2, axis=(0, 1)).sum()
-    else:
-        norm = pred.shape[-1] * pred.shape[-2] * pred.shape[-3]
-        return np.mean((pred-true)**2 / norm, axis=(0, 1)).sum()
-
-
-def RMSE(pred, true, spatial_norm=False):
-    if not spatial_norm:
-        return np.sqrt(np.mean((pred-true)**2, axis=(0, 1)).sum())
-    else:
-        norm = pred.shape[-1] * pred.shape[-2] * pred.shape[-3]
-        return np.sqrt(np.mean((pred-true)**2 / norm, axis=(0, 1)).sum())
-
-
-def PSNR(pred, true, min_max_norm=True):
-    """Peak Signal-to-Noise Ratio.
-
-    Ref: https://en.wikipedia.org/wiki/Peak_signal-to-noise_ratio
+import torch.nn.functional as F
+import numpy as np
+@torch.no_grad()
+def compute_metrics(gt, pred, dataset):
     """
-    mse = np.mean((pred.astype(np.float32) - true.astype(np.float32))**2)
-    if mse == 0:
-        return float('inf')
-    else:
-        if min_max_norm:  # [0, 1] normalized by min and max
-            return 20. * np.log10(1. / np.sqrt(mse))  # i.e., -10. * np.log10(mse)
-        else:
-            return 20. * np.log10(255. / np.sqrt(mse))  # [-1, 1] normalized by mean and std
-
-
-def SNR(pred, true):
-    """Signal-to-Noise Ratio.
-
-    Ref: https://en.wikipedia.org/wiki/Signal-to-noise_ratio
-    """
-    signal = ((true)**2).mean()
-    noise = ((true - pred)**2).mean()
-    return 10. * np.log10(signal / noise)
-
-
-def SSIM(pred, true, **kwargs):
-    C1 = (0.01 * 255)**2
-    C2 = (0.03 * 255)**2
-
-    img1 = pred.astype(np.float64)
-    img2 = true.astype(np.float64)
-    kernel = cv2.getGaussianKernel(11, 1.5)
-    window = np.outer(kernel, kernel.transpose())
-
-    mu1 = cv2.filter2D(img1, -1, window)[5:-5, 5:-5]  # valid
-    mu2 = cv2.filter2D(img2, -1, window)[5:-5, 5:-5]
-    mu1_sq = mu1**2
-    mu2_sq = mu2**2
-    mu1_mu2 = mu1 * mu2
-    sigma1_sq = cv2.filter2D(img1**2, -1, window)[5:-5, 5:-5] - mu1_sq
-    sigma2_sq = cv2.filter2D(img2**2, -1, window)[5:-5, 5:-5] - mu2_sq
-    sigma12 = cv2.filter2D(img1 * img2, -1, window)[5:-5, 5:-5] - mu1_mu2
-
-    ssim_map = ((2 * mu1_mu2 + C1) * (2 * sigma12 + C2)) / ((mu1_sq + mu2_sq + C1) *
-                                                            (sigma1_sq + sigma2_sq + C2))
-    return ssim_map.mean()
-
-def POD(hits, misses, eps=1e-6):
-    """
-    probability_of_detection
-    Inputs:
-    Outputs:
-        pod = hits / (hits + misses) averaged over the T channels
-        
-    """
-    pod = (hits + eps) / (hits + misses + eps)
-    return np.mean(pod)
-
-def SUCR(hits, fas, eps=1e-6):
-    """
-    success_rate
-    Inputs:
-    Outputs:
-        sucr = hits / (hits + false_alarms) averaged over the D channels
-    """
-    sucr = (hits + eps) / (hits + fas + eps)
-    return np.mean(sucr)
-
-def CSI(hits, fas, misses, eps=1e-6):
-    """
-    critical_success_index 
-    Inputs:
-    Outputs:
-        csi = hits / (hits + false_alarms + misses) averaged over the D channels
-    """
-    csi = (hits + eps) / (hits + misses + fas + eps)
-    return np.mean(csi)
-
-def sevir_metrics(pred, true, threshold):
-    """
-    calcaulate t, p, hits, fas, misses
-    Inputs:
-    pred: [N, T, C, L, L]
-    true: [N, T, C, L, L]
-    threshold: float
-    """
-    pred = pred.transpose(1, 0, 2, 3, 4)
-    true = true.transpose(1, 0, 2, 3, 4)
-    hits, fas, misses = [], [], []
-    for i in range(pred.shape[0]):
-        t, p = _threshold(pred[i], true[i], threshold)
-        hits.append(np.sum(t * p))
-        fas.append(np.sum((1 - t) * p))
-        misses.append(np.sum(t * (1 - p)))
-    return np.array(hits), np.array(fas), np.array(misses)
-
-
-class LPIPS(torch.nn.Module):
-    """Learned Perceptual Image Patch Similarity, LPIPS.
-
-    Modified from
-    https://github.com/richzhang/PerceptualSimilarity/blob/master/lpips_2imgs.py
-    """
-
-    def __init__(self, net='alex', use_gpu=True):
-        super().__init__()
-        assert net in ['alex', 'squeeze', 'vgg']
-        self.use_gpu = use_gpu and torch.cuda.is_available()
-        self.loss_fn = lpips.LPIPS(net=net)
-        if use_gpu:
-            self.loss_fn.cuda()
-
-    def forward(self, img1, img2):
-        # Load images, which are min-max norm to [0, 1]
-        img1 = lpips.im2tensor(img1 * 255)  # RGB image from [-1,1]
-        img2 = lpips.im2tensor(img2 * 255)
-        if self.use_gpu:
-            img1, img2 = img1.cuda(), img2.cuda()
-        return self.loss_fn.forward(img1, img2).squeeze().detach().cpu().numpy()
-
-
-def metric(pred, true, mean=None, std=None, metrics=['mae', 'mse'],
-           clip_range=[0, 1], channel_names=None,
-           spatial_norm=False, return_log=True, threshold=74.0):
-    """The evaluation function to output metrics.
-
+    计算预测深度与真实深度之间的误差
     Args:
-        pred (tensor): The prediction values of output prediction.
-        true (tensor): The prediction values of output prediction.
-        mean (tensor): The mean of the preprocessed video data.
-        std (tensor): The std of the preprocessed video data.
-        metric (str | list[str]): Metrics to be evaluated.
-        clip_range (list): Range of prediction to prevent overflow.
-        channel_names (list | None): The name of different channels.
-        spatial_norm (bool): Weather to normalize the metric by HxW.
-        return_log (bool): Whether to return the log string.
-
-    Returns:
-        dict: evaluation results
+        gt (): 真实深度
+        pred (): 预测深度
+        dataset (): 数据集类型
+    Returns: 所有误差指标的平均值
+    mean[abs_diff, abs_rel, sq_rel, rmse, rmse_log, a1, a2, a3，log10]
     """
-    if mean is not None and std is not None:
-        pred = pred * std + mean
-        true = true * std + mean
-    eval_res = {}
-    eval_log = ""
-    allowed_metrics = ['mae', 'mse', 'rmse', 'ssim', 'psnr', 'snr', 'lpips', 'pod', 'sucr', 'csi']
-    invalid_metrics = set(metrics) - set(allowed_metrics)
-    if len(invalid_metrics) != 0:
-        raise ValueError(f'metric {invalid_metrics} is not supported.')
-    if isinstance(channel_names, list):
-        assert pred.shape[2] % len(channel_names) == 0 and len(channel_names) > 1
-        c_group = len(channel_names)
-        c_width = pred.shape[2] // c_group
+    abs_diff = abs_rel = sq_rel = rmse = rmse_log = a1 = a2 = a3 = log10 = 0
+    batch_size, h, w = gt.shape
+
+    # 如果预测深度图和真实深度图大小不一致，进行插值
+    if pred.nelement() != gt.nelement():
+        pred = F.interpolate(pred, [h, w], mode='bilinear', align_corners=False)
+
+    pred = pred.view(batch_size, h, w)
+
+    # 根据不同的数据集类型定义有效的掩码
+    if dataset == 'kitti':
+        crop_mask = gt[0] != gt[0]
+        y1, y2 = int(0.40810811 * gt.size(1)), int(0.99189189 * gt.size(1))
+        x1, x2 = int(0.03594771 * gt.size(2)), int(0.96405229 * gt.size(2))
+        crop_mask[x1:x2, y1:y2] = 1
+        max_depth = 80
+    elif dataset == 'ddad':
+        crop_mask = gt[0] != gt[0]
+        crop_mask[:, :] = 1
+        max_depth = 200
+    elif dataset == 'nyu':
+        crop_mask = gt[0] != gt[0]
+        crop = np.array([45, 471, 41, 601]).astype(np.int32)
+        crop_mask[crop[0]:crop[1], crop[2]:crop[3]] = 1
+        max_depth = 10
+    elif dataset == 'bonn':
+        crop_mask = gt[0] != gt[0]
+        crop_mask[:, :] = 1
+        max_depth = 10
+    elif dataset == 'tum':
+        crop_mask = gt[0] != gt[0]
+        crop_mask[:, :] = 1
+        max_depth = 10
     else:
-        channel_names, c_group, c_width = None, None, None
+        raise ValueError('Unknown dataset')
 
-    if 'mse' in metrics:
-        if channel_names is None:
-            eval_res['mse'] = MSE(pred, true, spatial_norm)
-        else:
-            mse_sum = 0.
-            for i, c_name in enumerate(channel_names):
-                eval_res[f'mse_{str(c_name)}'] = MSE(pred[:, :, i*c_width: (i+1)*c_width, ...],
-                                                     true[:, :, i*c_width: (i+1)*c_width, ...], spatial_norm)
-                mse_sum += eval_res[f'mse_{str(c_name)}']
-            eval_res['mse'] = mse_sum / c_group
+    min_depth = 0.1
+    # 遍历计算评价指标
+    for current_gt, current_pred in zip(gt, pred):
+        valid = (current_gt > min_depth) & (current_gt < max_depth)
+        valid = valid & crop_mask
 
-    if 'mae' in metrics:
-        if channel_names is None:
-            eval_res['mae'] = MAE(pred, true, spatial_norm)
-        else:
-            mae_sum = 0.
-            for i, c_name in enumerate(channel_names):
-                eval_res[f'mae_{str(c_name)}'] = MAE(pred[:, :, i*c_width: (i+1)*c_width, ...],
-                                                     true[:, :, i*c_width: (i+1)*c_width, ...], spatial_norm)
-                mae_sum += eval_res[f'mae_{str(c_name)}']
-            eval_res['mae'] = mae_sum / c_group
+        valid_gt = current_gt[valid]
+        valid_pred = current_pred[valid]
 
-    if 'rmse' in metrics:
-        if channel_names is None:
-            eval_res['rmse'] = RMSE(pred, true, spatial_norm)
-        else:
-            rmse_sum = 0.
-            for i, c_name in enumerate(channel_names):
-                eval_res[f'rmse_{str(c_name)}'] = RMSE(pred[:, :, i*c_width: (i+1)*c_width, ...],
-                                                       true[:, :, i*c_width: (i+1)*c_width, ...], spatial_norm)
-                rmse_sum += eval_res[f'rmse_{str(c_name)}']
-            eval_res['rmse'] = rmse_sum / c_group
+        # 进行尺度对齐
+        valid_pred = valid_pred * torch.median(valid_gt) / torch.median(valid_pred)
 
-    if 'pod' in metrics:
-        hits, fas, misses = sevir_metrics(pred, true, threshold)
-        eval_res['pod'] = POD(hits, misses)
-        eval_res['sucr'] = SUCR(hits, fas)
-        eval_res['csi'] = CSI(hits, fas, misses) 
-        
-    pred = np.maximum(pred, clip_range[0])
-    pred = np.minimum(pred, clip_range[1])
-    if 'ssim' in metrics:
-        ssim = 0
-        for b in range(pred.shape[0]):
-            for f in range(pred.shape[1]):
-                ssim += cal_ssim(pred[b, f].swapaxes(0, 2),
-                                 true[b, f].swapaxes(0, 2), multichannel=True)
-        eval_res['ssim'] = ssim / (pred.shape[0] * pred.shape[1])
+        valid_pred = valid_pred.clamp(min=min_depth, max=max_depth)
+        # 计算各类误差
+        thresh = torch.max((valid_gt / valid_pred), (valid_pred / valid_gt))
+        a1 += (thresh < 1.25).float().mean()
+        a2 += (thresh < 1.25 ** 2).float().mean()
+        a3 += (thresh < 1.25 ** 3).float().mean()
 
-    if 'psnr' in metrics:
-        psnr = 0
-        for b in range(pred.shape[0]):
-            for f in range(pred.shape[1]):
-                psnr += PSNR(pred[b, f], true[b, f])
-        eval_res['psnr'] = psnr / (pred.shape[0] * pred.shape[1])
-
-    if 'snr' in metrics:
-        snr = 0
-        for b in range(pred.shape[0]):
-            for f in range(pred.shape[1]):
-                snr += SNR(pred[b, f], true[b, f])
-        eval_res['snr'] = snr / (pred.shape[0] * pred.shape[1])
-
-    if 'lpips' in metrics:
-        lpips = 0
-        cal_lpips = LPIPS(net='alex', use_gpu=False)
-        pred = pred.transpose(0, 1, 3, 4, 2)
-        true = true.transpose(0, 1, 3, 4, 2)
-        for b in range(pred.shape[0]):
-            for f in range(pred.shape[1]):
-                lpips += cal_lpips(pred[b, f], true[b, f])
-        eval_res['lpips'] = lpips / (pred.shape[0] * pred.shape[1])
-
-    if return_log:
-        for k, v in eval_res.items():
-            eval_str = f"{k}:{v}" if len(eval_log) == 0 else f", {k}:{v}"
-            eval_log += eval_str
-
-    return eval_res, eval_log
+        diff_i = valid_gt - valid_pred
+        abs_diff += torch.mean(
+            torch.abs(diff_i)
+        )
+        abs_rel += torch.mean(
+            torch.abs(diff_i) / valid_gt
+        )
+        sq_rel += torch.mean(
+            torch.pow(diff_i, 2) / valid_gt
+        )
+        rmse += torch.sqrt(
+            torch.mean(
+                torch.pow(diff_i, 2)
+            ))
+        rmse_log += torch.sqrt(
+            torch.mean(
+                torch.pow(torch.log(valid_gt) - torch.log(valid_pred), 2)
+            ))
+        log10 += torch.mean(
+            torch.abs(
+                torch.log10(valid_gt) - torch.log10(valid_pred)
+            )
+        )
+    # 返回所有误差指标的平均值mean[abs_diff, abs_rel, sq_rel, rmse, rmse_log, a1, a2, a3，log10]
+    return [metric.item() / batch_size for metric in [abs_diff, abs_rel, sq_rel, rmse, rmse_log, a1, a2, a3, log10]]

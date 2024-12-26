@@ -33,8 +33,12 @@ class TrainSet(Dataset):
                  skip_frames=1,
                  dataset='kitti',
                  use_frame_index=False,
-                 with_pseudo_depth=False):
+                 with_pseudo_depth=False,
+                 img_suffix='*.jpg',
+                 depth_suffix='*.png'):
         self.samples = None
+        self.img_suffix = img_suffix  # 图像后缀
+        self.depth_suffix = depth_suffix  # 深度图后缀
         self.root = Path(root).joinpath('training')  # 数据集的根目录
         scene_list_path = self.root.joinpath('train.txt') if train else self.root.joinpath('val.txt')
         self.scenes = [self.root.joinpath(folder.strip()) for folder in open(scene_list_path)]  # 获取所有场景路径
@@ -56,7 +60,7 @@ class TrainSet(Dataset):
             # 1. 读取相机内参
             intrinsics = np.genfromtxt(scene.joinpath('cam.txt')).astype(np.float32).reshape((3, 3))
             # 2. 获取图像文件，按文件名排序
-            imgs = sorted(scene.files('*.jpg'))
+            imgs = sorted(scene.files(self.img_suffix))
             if self.use_frame_index:
                 # 如果使用帧索引，则根据帧索引文件重新排序图像
                 frame_index = [int(index) for index in open(scene.joinpath('frame_index.txt'))]

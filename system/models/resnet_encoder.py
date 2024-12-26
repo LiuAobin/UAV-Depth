@@ -40,7 +40,7 @@ class ResNetMultiImageInput(models.ResNet):
                 nn.init.constant_(m.bias, 0)
 
 
-def resnet_multiimage_input(num_layers, pretrained=False, num_input_images=1):
+def resnet_multi_image_input(num_layers, pretrained=False, num_input_images=1):
     """Constructs a ResNet model.
     Args:
         num_layers (int): Number of resnet layers. Must be 18 or 50
@@ -87,7 +87,7 @@ class ResnetEncoder(nn.Module):
                 "{} is not a valid number of resnet layers".format(num_layers))
 
         if num_input_images > 1:
-            self.encoder = resnet_multiimage_input(
+            self.encoder = resnet_multi_image_input(
                 num_layers, pretrained, num_input_images)
         else:
             if pretrained:

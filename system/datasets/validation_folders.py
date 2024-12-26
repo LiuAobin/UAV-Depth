@@ -23,7 +23,7 @@ class ValidationSet(Dataset):
         dataset (str): 数据集名称，支持 'nyu'、'bonn'、'tum'、'kitti'、'ddad' 等。默认为 'nyu'。
     """
 
-    def __init__(self, root, transform=None, dataset='kitti'):
+    def __init__(self, root, transform=None, dataset='kitti',img_suffix='*.png',depth_suffix='*.png'):
         self.root = Path(root).joinpath('training')  # 根路径
         scene_list_path = self.root.joinpath('val.txt')  # 验证集场景列表文件
         self.scenes = [self.root.joinpath(folder.strip())
@@ -31,7 +31,8 @@ class ValidationSet(Dataset):
         self.transform = transform
         self.dataset = dataset
         # 加载图像和深度图
-        self.imgs, self.depths = crawl_folders(self.scenes, self.dataset)
+        self.imgs, self.depths = crawl_folders(self.scenes, self.dataset,
+                                               img_suffix=img_suffix,depth_suffix=depth_suffix)
 
     def __getitem__(self, index):
         """

@@ -2,7 +2,11 @@ import json
 import shutil
 import logging
 import os.path as osp
-from pytorch_lightning.callbacks import Callback, ModelCheckpoint
+import sys
+
+from pytorch_lightning.callbacks import Callback, ModelCheckpoint, TQDMProgressBar, Checkpoint
+from pytorch_lightning.callbacks.progress.tqdm_progress import Tqdm
+
 from .main_utils import check_dir, print_log, collect_env, output_namespace
 
 
@@ -54,7 +58,7 @@ class SetupCallback(Callback):
                 logging.root.removeHandler(handler)
             logging.basicConfig(level=logging.INFO,  # filename= {base_dir}/{exp_name}/{train/test}_{%Y%m%d_%H%M%S}.log
                                 filename=osp.join(self.save_dir, f'{self.prefix}_{self.setup_time}.log'),
-                                filemode='a', format='%(asctime)s - %(message)s')  # 消息格式：时间-信息
+                                filemode='a', format='%(asctime)s - %(message)s',encoding='utf-8')  # 消息格式：时间-信息
             # 打印环境信息到日志中
             print_log('Environment info:\n' + dash_line + env_info + '\n' + dash_line)
             # 保存模型参数到JSON文件
@@ -89,7 +93,7 @@ class EpochEndCallback(Callback):
         # 如果训练损失已记录，则打印损失信息和学习率
         if hasattr(self, 'avg_train_loss'):
             print_log(
-                f"Epoch {trainer.current_epoch}: Lr: {lr:.7f} | "
+                f"\nEpoch {trainer.current_epoch}: Lr: {lr:.7f} | "
                 f"Train Loss: {self.avg_train_loss:.7f} | "
                 f"Vali Loss: {avg_val_loss:.7f}")
 
@@ -126,3 +130,22 @@ class BestCheckpointCallback(ModelCheckpoint):
             best_path = checkpoint_callback.best_model_path
             # 将最佳模型另存为best.ckpt
             shutil.copy(best_path, osp.join(osp.dirname(best_path), 'best.ckpt'))
+
+
+class MyTQDMProgressBar(TQDMProgressBar):
+    """
+    解决验证时进度条输出异常的问题
+    """
+    def __init__(self):
+        super(MyTQDMProgressBar, self).__init__()
+
+    def init_validation_tqdm(self):
+        bar = Tqdm(
+            desc=self.validation_description,
+            position=0,  # 这里固定写0
+            disable=self.is_disabled,
+            leave=True,  # leave写True
+            dynamic_ncols=True,
+            file=sys.stdout,
+        )
+        return bar

@@ -1,3 +1,5 @@
+# 数据预处理阶段
+
 # 1 KITTI数据集
 > 按照[Zhou]划分的训练集和[Eigen]划分的测试集，全部所需的场景为/config/kitti/train_scenes.txt所述
 > 修改后的KITTI下载脚本为/scripts/kitti_raw_data_downloader.sh (已移除校园和人群场景和校准场景)
@@ -7,6 +9,18 @@
 > 1. [leftImg8bit_sequence_trainvaltest.zip](https://www.cityscapes-dataset.com/file-handling/?packageID=14) (324GB)
 > 2. [camera_trainvaltest.zip](https://www.cityscapes-dataset.com/file-handling/?packageID=8) (2MB)
 > 3. [vehicle_sequence.zip](https://www.cityscapes-dataset.com/file-handling/?packageID=20) (56MB)
+> 
+数据集组织方式
+cityscape
+    training
+        - berlin
+            - xxx.png
+            - depth
+                - xxx.png
+        - ...
+        train.txt
+        val.txt
+    testing
 
 # 3 DDAD数据集
 

@@ -1,12 +1,14 @@
-exp_name = 'ddad_sc_depth'
+exp_name = 'ddad_sc_depth_version_2'
 dataset_name = 'ddad'
 dataset_dir = 'E:/Depth/target_dataset/ddad'
 val_mode = 'depth'
 resnet_layers = 18
 lr = 1e-4
 batch_size = 4
-num_epochs = 100
+epochs = 500
 epoch_size = 1000
 photo_weight = 1.0
 geometry_weight = 0.1
 smooth_weight = 0.1
+resume = True
+ckpt_path = './work_dirs/ddad_sc_depth_version_1/checkpoints/last.ckpt'

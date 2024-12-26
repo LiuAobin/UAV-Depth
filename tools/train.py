@@ -1,9 +1,14 @@
 import warnings
+import sys
+from system.api import BaseExperiment
+from utils import create_parser, update_config
+
+if sys.stdout.encoding != 'utf-8':
+    sys.stdout = open(sys.stdout.fileno(), mode='w', encoding='utf-8', buffering=1)
 
 warnings.filterwarnings("ignore")
 
-from system.api import BaseExperiment
-from utils import create_parser, update_config
+
 
 if __name__ == "__main__":
     args = create_parser()  # 获取参数信息

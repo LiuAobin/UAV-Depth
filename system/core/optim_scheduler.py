@@ -17,6 +17,7 @@ from timm.scheduler.step_lr import StepLRScheduler
 from timm.scheduler.tanh_lr import TanhLRScheduler
 # 导入优化器参数
 from .optim_constant import optim_parameters
+from ..utils import print_log
 
 # 定义可用的学习率调度器列表
 timm_schedulers = [
@@ -78,8 +79,8 @@ def get_optim_scheduler(args, epoch, models, steps_per_epoch):
     """
     获取优化器和学习率调度器的函数
     """
-    if not isinstance(models,(list,tuple)):
-        models=[models]
+    if not isinstance(models, (list, tuple)):
+        models = [models]
 
     opt_lower = args.opt.lower()  # 获取优化器名字并转换为小写
     weight_decay = args.weight_decay  # 获取梯度衰减系数
@@ -192,7 +193,9 @@ def get_optim_scheduler(args, epoch, models, steps_per_epoch):
             warmup_lr_init=args.warmup_lr,
             warmup_t=args.warmup_epoch)
     else:
-        assert False and "Invalid scheduler"   # 如果调度器不合法，则报错
+        assert False and "Invalid scheduler"  # 如果调度器不合法，则报错
 
     # 返回优化器、学习率调度器和是否按epoch更新学习率
+    print_log(f'lr_scheduler: {lr_scheduler}')
+    print_log(f'optimizer: {optimizer}')
     return optimizer, lr_scheduler, by_epoch

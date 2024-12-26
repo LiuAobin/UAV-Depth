@@ -1,17 +1,18 @@
 import sys
 import time
 
+
 import torch
 from fvcore.nn import FlopCountAnalysis, flop_count_table
-from pytorch_lightning import Trainer, seed_everything
-from pytorch_lightning.loggers import TensorBoardLogger
 from path import Path
 
-from system.methods import method_maps
-from system.datasets import BaseDataModule
+from pytorch_lightning import Trainer, seed_everything
+from pytorch_lightning.loggers import TensorBoardLogger
 import pytorch_lightning.callbacks as lc
-
-from system.utils import (SetupCallback, BestCheckpointCallback, EpochEndCallback, measure_throughput)
+from system.datasets import BaseDataModule
+from system.methods import method_maps
+from system.utils import (SetupCallback, BestCheckpointCallback, measure_throughput,
+                          MyTQDMProgressBar)
 
 # 实验相关
 """
@@ -54,7 +55,7 @@ class BaseExperiment(object):
     def train(self):
         """训练模型"""
         self.trainer.fit(self.method, self.data,
-                         ckpt_path=self.config.ckpt_path if self.config.ckpt_path else None)
+                         ckpt_path=self.config.ckpt_path if self.config.ckpt_path and self.config.resume else None)
 
     def test(self):
         """测试模型"""
@@ -124,16 +125,20 @@ class BaseExperiment(object):
         # 设置最佳模型检查点回调
         ckpt_callback = BestCheckpointCallback(
             monitor=args.metric_for_bestckpt,  # 监控的指标
-            filename='best-{epoch:02d}-{val_loss:.3f}',  # 模型文件名格式
+            filename='best-{epoch:02d}-{val_loss:.4f}',  # 模型文件名格式
             mode='min',  # 最小化val_loss
             save_last=True,  # 保存最后一个检查点
             dirpath=ckpt_dir,  # 检查点保存路径
             verbose=True,  # 显示日志
             every_n_epochs=args.log_step  # 每N个Epoch保存一次
         )
+
+        # 进度条
+        progress_bar_callback = MyTQDMProgressBar()
         # 训练结束时回调
-        epochend_callback = EpochEndCallback()
-        callbacks = [setup_callback, ckpt_callback, epochend_callback]
+        # epochend_callback = EpochEndCallback()
+        # callbacks = [setup_callback, ckpt_callback, epochend_callback,progress_bar_callback]
+        callbacks = [setup_callback, ckpt_callback, progress_bar_callback]
         # 需要学习率监控，则添加学习率回调
         if args.sched:
             callbacks.append(lc.LearningRateMonitor(logging_interval='step'))

@@ -4,9 +4,14 @@ import os
 import imageio
 import numpy as np
 from path import Path
+from pebble import ProcessPool
 from skimage import transform
-
-from .base_loader import BaseLoader
+from tqdm import tqdm  # 用于实现进度条
+from base_loader import BaseLoader
+from utils.parser import create_parser, update_config
+from system.utils import check_dir
+from glob import glob
+import cv2
 
 
 class CityscapesLoader(BaseLoader):
@@ -23,6 +28,7 @@ class CityscapesLoader(BaseLoader):
         # 获取该划分下的所有城市场景序列
         self.scenes = Path(os.path.join(config.dataset_dir, 'leftImg8bit_sequence', self.split)).dirs()
         print('Total scenes collected: {}'.format(len(self.scenes)))
+        self.scene_name_list = [scene_name.name for scene_name in self.scenes]
 
     def collect_scenes(self, city):
         """
@@ -62,13 +68,13 @@ class CityscapesLoader(BaseLoader):
                 frame_speeds = [self.load_speed(city, scene_id, frame_id) for frame_id in subscene]
                 connex_scene_data_list.append({'city': city,
                                                'scene_id': scene_id,
-                                               'rel_path': f'{city.basename}_{scene_id}_{subscene[0]}_0',
+                                               'rel_path': f'{city.name}_{scene_id}_{subscene[0]}_0',
                                                'intrinsics': intrinsics,
                                                'frame_ids': subscene[0::2],  # 每隔两帧取一个子序列
                                                'speeds': frame_speeds[0::2]})
                 connex_scene_data_list.append({'city': city,
                                                'scene_id': scene_id,
-                                               'rel_path': f'{city.basename}_{scene_id}_{subscene[0]}_1',
+                                               'rel_path': f'{city.name}_{scene_id}_{subscene[0]}_1',
                                                'intrinsics': intrinsics,
                                                'frame_ids': subscene[1::2],  # 每隔两帧取一个子序列
                                                'speeds': frame_speeds[1::2]})
@@ -83,8 +89,9 @@ class CityscapesLoader(BaseLoader):
         """
         city_name = city.basename()
         # 相机内参文件路径
-        camera_folder = Path(self.dataset_dir).joinpath('camera',self.split,city_name)
+        camera_folder = Path(self.dataset_dir).joinpath('camera', self.split, city_name)
         camera_file = camera_folder.files(f'{city_name}_{scene_id}_*_camera.json')[0]
+        a = camera_file.split('_')
         frame_id = camera_file.split('_')[2]  # 获取帧ID
         # 获取对应帧的图像路径
         frame_path = city.joinpath(f'{city_name}_{scene_id}_{frame_id}_leftImg8bit.png')
@@ -124,7 +131,7 @@ class CityscapesLoader(BaseLoader):
         :return: 车辆速度
         """
         city_name = city.basename()
-        vehicle_folder = Path(self.dataset_dir).joinpath('vehicle_sequence',self.split,city_name)
+        vehicle_folder = Path(self.dataset_dir).joinpath('vehicle_sequence', self.split, city_name)
         vehicle_file = vehicle_folder.joinpath(f'{city_name}_{scene_id}_{frame_id}_vehicle.json')
         with open(vehicle_file, 'r') as f:
             vehicle = json.load(f)
@@ -143,7 +150,8 @@ class CityscapesLoader(BaseLoader):
             speed_mag = np.linalg.norm(cum_speed)  # 计算速度的大小
             if speed_mag > self.min_speed:  # 如果速度大于最小速度，则返回图像
                 yield {"img": self.load_image(scene_data['city'], scene_data['scene_id'], frame_id),
-                       "id": frame_id}
+                       "id": frame_id,
+                       "depth": self.load_depth(scene_data['city'], scene_data['scene_id'], frame_id), }
                 cum_speed *= 0  # 重置累积速度
 
     def load_image(self, city, scene_id, frame_id):
@@ -154,10 +162,83 @@ class CityscapesLoader(BaseLoader):
         :param frame_id: 帧ID
         :return: 处理后的图像
         """
-        img_file = city.joinpath(f'{city.basename()}_{scene_id}_{frame_id}_leftImg8bit.png')
-        if not img_file.isfile():
+        img_file = city.joinpath(f'{city.name}_{scene_id}_{frame_id}_leftImg8bit.png')
+        if not img_file.is_file():
             return None  # 如果文件不存在，返回None
         img = imageio.v2.imread(img_file)
         # 调整图像大小，并裁剪掉底部的部分（如果设置了crop_bottom）
-        img = transform.resize(img, (self.img_height, self.img_width))[:int(self.img_height * 0.75)]
+        # img = transform.resize(img, (self.img_height, self.img_width))[:int(self.img_height * 0.75)]
         return img
+
+    def load_depth(self, city, scene_id, frame_id):
+        img_file = Path(self.dataset_dir).joinpath('disparity_sequence', self.split, city.name,
+                                                   f'{city.name}_{scene_id}_{frame_id}_disparity.png')
+        if not img_file.is_file():
+            return None  # 如果文件不存在，返回None
+        img = imageio.v2.imread(img_file)
+        # 调整图像大小，并裁剪掉底部的部分（如果设置了crop_bottom）
+        # img = transform.resize(img, (self.img_height, self.img_width))[:int(self.img_height * 0.75)]
+        return img
+
+
+def dump_example(args, scene, data_loader=None, mode='test'):
+    """
+    用于保存每个场景数据
+    Args:
+        args ():
+        scene ():
+        data_loader ():
+        mode ():
+    Returns:
+    """
+    scene_list = data_loader.collect_scenes(scene)
+    for scene_data in scene_list:  # 遍历每个场景数据
+        dump_dir = os.path.join(str(args.dump_dir), mode, scene_data['rel_path'])
+        check_dir(dump_dir)  # 检查文件夹是否存在
+        depth_dir = os.path.join(str(args.dump_dir), mode, scene_data['rel_path'], 'depth')
+        check_dir(depth_dir)
+        # 相机内参
+        intrinsics = scene_data['intrinsics']
+        # 相机内参文件路径
+        dump_cam_file = os.path.join(dump_dir, 'cam.txt')
+        np.savetxt(dump_cam_file, intrinsics)  # 保存相机内参
+        # 状态信息
+        for sample in data_loader.get_scene_imgs(scene_data):  # 获取场景数据中的所有图像
+            # 保存图像
+            img, frame_nb = sample['img'], sample['id']  # 获取图像和帧编号
+            dump_img_file = os.path.join(dump_dir, f'{frame_nb}.png')
+            imageio.v2.imsave(dump_img_file, img)
+            # 保存深度
+            if 'depth' in sample.keys():
+                dump_depth_file = os.path.join(depth_dir, f'{frame_nb}.png')
+                imageio.v2.imsave(dump_depth_file, sample['depth'])
+
+
+def main():
+    args = create_parser()
+    args = update_config(args)
+    check_dir(args.dump_dir)  # 创建存储预处理数据结果的根目录
+    data_loader = CityscapesLoader(args)  # 数据加载器
+    n_scenes = len(data_loader.scenes)  # 总的场景数
+    print(f'Total scenes: {n_scenes}')
+    if args.num_threads == 1:
+        for scene in tqdm(data_loader.scenes):
+            dump_example(args, scene, data_loader=data_loader)
+    else:  # 多线程
+        with ProcessPool(max_workers=args.num_threads) as pool:  # 创建一个线程池
+            tasks = pool.map(dump_example, [args] * n_scenes, data_loader.scenes, [data_loader] * n_scenes)
+            try:
+                for _ in tqdm(tasks.result(), total=n_scenes):  # 显示任务进度
+                    pass
+            except KeyboardInterrupt as e:  # 捕获中断异常
+                tasks.cancel()  # 取消任务
+                raise e
+    print(f'Generating {args.split} lists')
+    subfolders = os.listdir(os.path.join(args.dump_dir, args.split))
+    with open(os.path.join(args.dump_dir,args.split, f'{args.split}.txt'), 'w') as f:
+        for s in subfolders:
+            f.write(f'{os.path.basename(s)}\n')
+
+
+if __name__ == '__main__':
+    main()
