@@ -1,5 +1,5 @@
 dataset_name = 'kitti'
-dataset_path = 'E:/Depth/target_dataset/SC-Depth/KITTI'
+dataset_dir = 'E:/Depth/target_dataset/kitti'
 folder_type = 'sequence'
 load_pseudo_depth = False
 model = 'sc-depth-pl'
@@ -9,3 +9,6 @@ use_frame_index = False
 height = 256
 width = 832
 epoch_size=2000
+resnet_layers=18
+img_suffix='*.jpg'
+depth_suffix='*.npz'

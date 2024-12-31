@@ -8,9 +8,7 @@ class BaseMethod(LightningModule):
         # 保存超参数
         self.save_hyperparameters()
         self.models = self._build_model()  # 子类具体实验模型构建逻辑
-        self.validation_step_outputs = []
-        self.train_step_outputs = []
-        self.test_step_outputs = []
+
 
     def _build_model(self):
         """

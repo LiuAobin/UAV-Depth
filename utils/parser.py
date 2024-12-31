@@ -11,7 +11,7 @@ def create_parser():
     # -------------------------------------------常用设置---------------------------------------------
     # 基础配置  --config_file是关键
     parser.add_argument('--config_file', '-c', type=str,
-                        default='./data/configs/midair.py',
+                        default='./configs/sc_depth/kitti.py',
                         help='额外的配置文件所在路径')
     parser.add_argument('--work_dir', type=str,
                         default='./work_dirs',

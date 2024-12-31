@@ -108,7 +108,7 @@ def inverse_warp(img, depth, ref_depth, pose, intrinsics, padding_mode='zeros'):
 
     world_points = depth_to_3d(depth, intrinsics)  # 从目标深度图获取视世界坐标 -- [B,3,H,W]
     world_points = torch.cat([world_points, torch.ones(B, 1, H, W).type_as(img)], 1)
-    cam_points = torch.matmul(P, world_points[B, 4, -1])  # 将世界坐标转换到相机坐标
+    cam_points = torch.matmul(P, world_points.view(B, 4, -1))  # 将世界坐标转换到相机坐标
 
     # 将相机坐标映射到像素坐标
     pix_coords = cam_points[:, :2, :] / (cam_points[:, 2, :].unsqueeze(1) + 1e-7)

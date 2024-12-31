@@ -203,7 +203,7 @@ def photo_and_geometry_loss(tgt_img, ref_imgs, tgt_depth, ref_depths,
         dynamic_mask += [1 - tmp]  # 反转深度差异作为动态区域的标记
     # 将所有动态遮罩拼接在一起，并计算其均值
     dynamic_mask = torch.cat(dynamic_mask, dim=1).mean(dim=1, keepdim=True)
-    return photo_loss, geometry_loss, dynamic_mask  # 返回照片损失、几何损失和动态遮罩
+    return photo_loss, geometry_loss
 
 
 def smooth_loss(tgt_depth, tgt_img):

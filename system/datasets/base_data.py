@@ -6,8 +6,9 @@ from .custom_transforms import (Compose, Normalize, ArrayToTensor,
 from .train_folders import TrainSet
 from .test_folders import TestSet
 from .validation_folders import ValidationSet
-dataset_map = {}
-
+from .midair_dataset import MidAirSet
+dataset_map = {'midair':MidAirSet}
+dataset_key = ['midair']
 class BaseDataModule(LightningDataModule):
     """
     数据加载模块，负责加载训练集和验证集数据，并进行必要的预处理和变换
@@ -81,55 +82,80 @@ class BaseDataModule(LightningDataModule):
         print(f'test size: {len(self.test_dataset)}')
 
     def get_train_dataset(self):
-        return TrainSet(
-            root=self.cfg.dataset_dir,
-            train=True,
-            sequence_length=self.cfg.sequence_length,
-            transform=self.train_transform,
-            skip_frames=self.cfg.skip_frames,
-            dataset=self.cfg.dataset_name,
-            use_frame_index=self.cfg.use_frame_index,
-            with_pseudo_depth=self.load_pseudo_depth,
-            img_suffix=self.cfg.img_suffix,
-            depth_suffix=self.cfg.depth_suffix,
-        )
-
-
-    def get_val_dataset(self):
-        # 验证数据集——分两种，验证深度或光度损失
-        if self.cfg.val_mode == 'photo':
-            return TrainSet(
+        if self.cfg.dataset_name in dataset_key:
+            return dataset_map[self.cfg.dataset_name](
                 root=self.cfg.dataset_dir,
-                train=False,
+                mode='train',
                 sequence_length=self.cfg.sequence_length,
-                transform=self.valid_transform,
+                transform=self.train_transform,
                 skip_frames=self.cfg.skip_frames,
-                use_frame_index=self.cfg.use_frame_index,
-                with_pseudo_depth=False,
                 img_suffix=self.cfg.img_suffix,
                 depth_suffix=self.cfg.depth_suffix,
             )
         else:
             return TrainSet(
                 root=self.cfg.dataset_dir,
-                train=False,
+                train=True,
                 sequence_length=self.cfg.sequence_length,
-                transform=self.valid_transform,
+                transform=self.train_transform,
                 skip_frames=self.cfg.skip_frames,
+                dataset=self.cfg.dataset_name,
                 use_frame_index=self.cfg.use_frame_index,
-                with_pseudo_depth=False,
+                with_pseudo_depth=self.load_pseudo_depth,
                 img_suffix=self.cfg.img_suffix,
                 depth_suffix=self.cfg.depth_suffix,
             )
 
+
+    def get_val_dataset(self):
+        # 验证数据集——分两种，验证深度或光度损失
+        if self.cfg.dataset_name in dataset_key:
+            return dataset_map[self.cfg.dataset_name](
+                root=self.cfg.dataset_dir,
+                mode='train',
+                sequence_length=self.cfg.sequence_length,
+                transform=self.train_transform,
+                skip_frames=self.cfg.skip_frames,
+                img_suffix=self.cfg.img_suffix,
+                depth_suffix=self.cfg.depth_suffix,
+            )
+        else:
+            if self.cfg.val_mode == 'photo':
+                return TrainSet(
+                    self.cfg.dataset_dir,  # 数据集根目录
+                    train=False,  # 验证模式
+                    transform=self.valid_transform,  # 验证集的预处理变换
+                    sequence_length=self.cfg.sequence_length,  # 序列长度
+                    skip_frames=self.cfg.skip_frames,  # 跳帧数
+                    use_frame_index=self.cfg.use_frame_index,  # 是否使用帧索引
+                    with_pseudo_depth=False  # 不加载伪深度
+                )
+            else:
+                return ValidationSet(
+                    self.cfg.dataset_dir,  # 数据集根目录
+                    transform=self.valid_transform,  # 验证集的预处理变换
+                    dataset=self.cfg.dataset_name  # 数据集名称
+                )
+
     def get_test_dataset(self):
-        return TestSet(
-            root=self.cfg.dataset_dir,
-            transform=self.test_transform,
-            dataset=self.cfg.dataset_name,
-            img_suffix=self.cfg.img_suffix,
-            depth_suffix=self.cfg.depth_suffix,
-        )
+        if self.cfg.dataset_name in dataset_key:
+            return dataset_map[self.cfg.dataset_name](
+                root=self.cfg.dataset_dir,
+                mode='train',
+                sequence_length=self.cfg.sequence_length,
+                transform=self.train_transform,
+                skip_frames=self.cfg.skip_frames,
+                img_suffix=self.cfg.img_suffix,
+                depth_suffix=self.cfg.depth_suffix,
+            )
+        else:
+            return TestSet(
+                root=self.cfg.dataset_dir,
+                transform=self.test_transform,
+                dataset=self.cfg.dataset_name,
+                img_suffix=self.cfg.img_suffix,
+                depth_suffix=self.cfg.depth_suffix,
+            )
 
     def train_dataloader(self):
         """
@@ -142,7 +168,7 @@ class BaseDataModule(LightningDataModule):
                                 num_samples=self.cfg.batch_size * self.cfg.epoch_size)  # 计算需要的样本数量
         return DataLoader(self.train_dataset,  # 数据集
                           batch_size=self.cfg.batch_size,  # 批次大小
-                          num_workers=self.cfg.workers,  # 加载数据时使用的线程数
+                          num_workers=self.cfg.num_threads,  # 加载数据时使用的线程数
                           pin_memory=True,  # 使用固定内存，提升数据加载速度
                           sampler=sampler,  # 随机采样
                           drop_last=True,  # 丢弃最后一个不完整的批次
@@ -156,7 +182,7 @@ class BaseDataModule(LightningDataModule):
         """
         return DataLoader(self.val_dataset,  # 使用验证数据集
                           shuffle=False,  # 不打乱数据
-                          num_workers=self.cfg.workers,  # 加载数据的工作线程数
+                          num_workers=self.cfg.num_threads,  # 加载数据的工作线程数
                           batch_size=self.cfg.batch_size,  # 设置批次大小
                           pin_memory=True)  # 使用固定内存，提升数据加载速度
 
@@ -168,6 +194,6 @@ class BaseDataModule(LightningDataModule):
         """
         return DataLoader(self.test_dataset,  # 使用验证数据集
                           shuffle=False,  # 不打乱数据
-                          num_workers=self.cfg.workers,  # 加载数据的工作线程数
+                          num_workers=self.cfg.num_threads,  # 加载数据的工作线程数
                           batch_size=self.cfg.batch_size,  # 设置批次大小
                           pin_memory=True)  # 使用固定内存，提升数据加载速度

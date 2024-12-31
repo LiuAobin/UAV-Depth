@@ -10,6 +10,9 @@ from system.models import DepthNet, PoseNet
 class SCDepthV1(BaseMethod):
     def __init__(self, config):
         super(SCDepthV1, self).__init__(config)
+        self.validation_step_outputs = []
+        self.train_step_outputs = []
+        self.test_step_outputs = []
 
     def _build_model(self):
         self.depth_net = DepthNet(self.hparams.config.resnet_layers)  # 深度估计网络
@@ -84,9 +87,11 @@ class SCDepthV1(BaseMethod):
         elif self.hparams.config.val_mode == 'photo':  # 光度损失验证模式
             tgt_img, ref_imgs, intrinsics = batch  # 提取目标图像、参考图像和相机内参
             poses, poses_inv, ref_depths, tgt_depth = self.predict(ref_imgs, tgt_img)
-            loss_1, _ = photo_and_geometry_loss(
-                tgt_img, ref_imgs, tgt_depth, ref_depths, intrinsics, poses, poses_inv, self.hparams.hparams
-            )
+            loss_1, loss_2 = photo_and_geometry_loss(
+                tgt_img,ref_imgs,
+                tgt_depth,ref_depths,
+                intrinsics,poses,poses_inv,
+                self.hparams.config)
             errs = {'photo_loss': loss_1.item()}
 
         else:
@@ -167,6 +172,6 @@ class SCDepthV1(BaseMethod):
         # 记录日志和打印
         for key, value in log_data.items():
             self.log(key, value, on_epoch=True,)
-        print_log(log_message + ''.join([f'{key}: {value:.4f} | ' for key, value in log_data.items()]))
+        print_log(''.join([f'{key}: {value:.4f} | ' for key, value in log_data.items()]))
 
 
