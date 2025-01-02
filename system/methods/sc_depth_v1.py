@@ -95,7 +95,7 @@ class SCDepthV1(BaseMethod):
             errs = {'photo_loss': loss_1.item()}
 
         else:
-            print('wrong validation mode')  # 错误模式提示
+            print('wrong validation stage')  # 错误模式提示
 
         self.validation_step_outputs.append(errs)
         if self.global_step < 10:  # 若步骤数小于10，直接返回误差

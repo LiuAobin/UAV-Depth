@@ -142,9 +142,6 @@ def create_parser():
                              'zeros表示在超出目标图像范围时梯度为0，border表示仅在x或y坐标超出时梯度为0')
     parser.add_argument('--with_gt', action='store_true',
                         help='验证时是否使用地面真值,需要保存的npy文件，即在预处理数据时设置with_depth=True')
-
-    parser.add_argument('--sched', default='onecycle', type=str,
-                        help='LR scheduler (default: "onecycle")')
     # 损失函数相关
     parser.add_argument('--no_ssim', action='store_true',
                         help='use ssim in photometric loss')

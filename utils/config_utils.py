@@ -49,7 +49,7 @@ class Config:
         :param filename: 配置文件路径
         :raises SyntaxError: 如果文件语法有误，抛出SyntaxError
         """
-        with open(filename, 'r') as f:  # 打开并读取文件内容
+        with open(filename, 'r',encoding='utf-8') as f:  # 打开并读取文件内容
             content = f.read()
         try:
             ast.parse(content)  # 使用ast.parse解析文件内容，检查语法是否正确

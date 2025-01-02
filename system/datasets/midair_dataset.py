@@ -44,7 +44,7 @@ class MidAirSet(Dataset):
     内参矩阵
      $$\mathbf{K} = \begin{bmatrix} f_x & 0 & 0 & c_x \\ 0 & f_y & c_y \\ 0 & 0 & 1 \end{bmatrix} \quad \text{with} \quad f_x=c_x= w/2 \ \text{and} \ f_y=c_y= h/2 $$
     """
-    def __init__(self,root,mode='train',
+    def __init__(self, root, stage='train',
                  sequence_length=3,
                  transform=None,
                  skip_frames=1,
@@ -54,17 +54,16 @@ class MidAirSet(Dataset):
         初始化数据集加载器，并遍历文件夹生成样本
         Args:
             root ():
-            mode ():
+            stage ():
             sequence_length ():
             transform ():
             skip_frames ():
-            use_frame_index ():
             img_suffix ():
             depth_suffix ():
         """
         self.samples = None
         self.root = Path(root)
-        self.mode = mode
+        self.stage = stage
         self.img_suffix = img_suffix
         self.depth_suffix = depth_suffix
 
@@ -72,7 +71,7 @@ class MidAirSet(Dataset):
         self.sequence_length = sequence_length
         self.transform = transform
         # 场景列表文件
-        scene_list_path = self.root.joinpath(f'{mode}.txt')
+        scene_list_path = self.root.joinpath(f'{stage}.txt')
         # 获取所有场景路径
         self.scenes = [self.root.joinpath(folder.strip())
                        for folder in open(scene_list_path)]
@@ -100,7 +99,7 @@ class MidAirSet(Dataset):
             # 2. 获取图像文件
             imgs = sorted(scene.files(self.img_suffix))
             # 根据当前阶段来加载不同的数据
-            if self.mode == 'train':
+            if self.stage == 'train':
                 if len(imgs) < sequence_length:
                     continue
                 # 生成数据列表的帧索引
@@ -142,7 +141,7 @@ class MidAirSet(Dataset):
         # 根据当前阶段来加载不同的数据
 
         intrinsics = np.copy(sample['intrinsics'])
-        if self.mode == 'train':
+        if self.stage == 'train':
             ref_imgs = [load_as_float(ref_img) for ref_img in sample['ref_imgs']]  # 参考图像
             # 矩阵变化
             if self.transform is not None:
@@ -200,7 +199,7 @@ def visualize_batch(images, depths):
 if __name__ == '__main__':
     dataset = MidAirSet(
         root='E:/Depth/origin-dataset/MidAir',
-        mode='test',
+        stage='test',
         sequence_length=3,
         transform=None,
         skip_frames=1,

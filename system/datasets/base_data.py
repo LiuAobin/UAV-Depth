@@ -9,6 +9,7 @@ from .validation_folders import ValidationSet
 from .midair_dataset import MidAirSet
 dataset_map = {'midair':MidAirSet}
 dataset_key = ['midair']
+
 class BaseDataModule(LightningDataModule):
     """
     数据加载模块，负责加载训练集和验证集数据，并进行必要的预处理和变换
@@ -30,10 +31,11 @@ class BaseDataModule(LightningDataModule):
         """
         super().__init__()
         # 保存超参数
+        self.save_hyperparameters()
         self.train_dataset = None
         self.val_dataset = None
         self.test_dataset = None
-        self.save_hyperparameters()
+
         self.cfg = cfg
         # 获取训练数据大小
         self.training_size = [cfg.height, cfg.width]
@@ -105,7 +107,6 @@ class BaseDataModule(LightningDataModule):
                 img_suffix=self.cfg.img_suffix,
                 depth_suffix=self.cfg.depth_suffix,
             )
-
 
     def get_val_dataset(self):
         # 验证数据集——分两种，验证深度或光度损失
