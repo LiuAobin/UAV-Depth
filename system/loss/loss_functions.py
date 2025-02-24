@@ -1,7 +1,10 @@
 import numpy as np
 import torch
 import torch.nn as nn
+from matplotlib import pyplot as plt
 
+# from mask_ranking_loss import Mask_Ranking_Loss
+# from normal_ranking_loss import EdgeguidedNormalRankingLoss
 from .mask_ranking_loss import Mask_Ranking_Loss
 from .normal_ranking_loss import EdgeguidedNormalRankingLoss
 from system.utils import inverse_warp
@@ -85,15 +88,18 @@ def compute_pairwise_loss(tgt_img, ref_img, tgt_depth, ref_depth, pose, intrinsi
     )
     # 计算深度差异（归一化绝对误差）
     # 计算深度差异公式：|d_computed - d_projected| / (d_computed + d_projected)
-    diff_depth = (computed_depth - projected_depth).abs() / (computed_depth + projected_depth)
+    diff_depth = ((computed_depth - projected_depth).abs() /
+                  (computed_depth + projected_depth))
 
     # 对零值进行掩码，计算有效区域
     valid_mask_ref = (
             ref_img_warped.abs().mean(dim=1, keepdim=True) > 1e-3
     ).float()
+
     valid_mask_tgt = (
         tgt_img.abs().mean(dim=1, keepdim=True) > 1e-3
     ).float()
+
     # 有效区域同时满足目标图像和参考图像有效
     valid_mask = valid_mask_tgt * valid_mask_ref
 
@@ -122,6 +128,7 @@ def compute_pairwise_loss(tgt_img, ref_img, tgt_depth, ref_depth, pose, intrinsi
     if not hparams.no_dynamic_mask:
         weight_mask = (1-diff_depth).detach()  # 计算动态区域的权重，深度差异越大，权重越小
         diff_img = diff_img * weight_mask  # 应用动态区域的权重
+
     return diff_img, diff_color, diff_depth, valid_mask
 
 
@@ -196,13 +203,6 @@ def photo_and_geometry_loss(tgt_img, ref_imgs, tgt_depth, ref_depths,
     photo_loss = mean_on_mask(diff_img, valid_mask)  # 使用有效掩码计算图像差异的均值
     geometry_loss = mean_on_mask(diff_depth, valid_mask)  # 使用有效掩码计算深度差异的均值
     # 计算动态掩码
-    dynamic_mask = []
-    for i in range(0, len(diff_depth_list), 2): # 每两个参考图像对一起计算
-        tmp = diff_depth_list[i]
-        tmp[valid_mask_list[i] < 1] = 0  # 将无效区域的深度设为零
-        dynamic_mask += [1 - tmp]  # 反转深度差异作为动态区域的标记
-    # 将所有动态遮罩拼接在一起，并计算其均值
-    dynamic_mask = torch.cat(dynamic_mask, dim=1).mean(dim=1, keepdim=True)
     return photo_loss, geometry_loss
 
 
@@ -234,3 +234,44 @@ def smooth_loss(tgt_depth, tgt_img):
     # 计算并返回平滑损失
     loss = get_smooth_loss(tgt_depth, tgt_img)
     return loss
+
+
+def main():
+    # 设定测试参数
+    B, C, H, W = 2, 3, 128, 128  # Batch size, Channels, Height, Width
+    num_refs = 2  # 参考图像数量
+
+    # 生成随机测试数据
+    tgt_img = torch.rand(B, C, H, W)  # 目标图像
+    ref_imgs = [torch.rand(B, C, H, W) for _ in range(num_refs)]  # 参考图像
+    tgt_depth = torch.rand(B, 1, H, W)  # 目标深度
+    ref_depths = [torch.rand(B, 1, H, W) for _ in range(num_refs)]  # 参考深度
+
+    intrinsics = torch.eye(3).unsqueeze(0).repeat(B, 1, 1)  # 相机内参 (B, 3, 3)
+    poses = [torch.eye(4) for _ in range(num_refs)]  # 目标到参考图像的变换矩阵
+    poses_inv = [torch.inverse(p) for p in poses]  # 参考图像到目标图像的逆变换
+
+    # 伪造超参数对象
+    class HParams:
+        no_min_optimize = False  # 控制最小优化策略
+
+    hparams = HParams()
+
+    # 计算光度和几何损失
+    photo_loss, geometry_loss = photo_and_geometry_loss(
+        tgt_img, ref_imgs, tgt_depth, ref_depths, intrinsics, poses, poses_inv, hparams
+    )
+
+    # 打印损失结果
+    print(f"Photo Loss: {photo_loss.item():.4f}")
+    print(f"Geometry Loss: {geometry_loss.item():.4f}")
+
+    # 可选：绘制损失趋势（如果需要运行多次训练迭代）
+    losses = [photo_loss.item(), geometry_loss.item()]
+    plt.bar(["Photo Loss", "Geometry Loss"], losses, color=["blue", "green"])
+    plt.ylabel("Loss Value")
+    plt.title("Loss Comparison")
+    plt.show()
+
+if __name__ == "__main__":
+    main()

@@ -11,7 +11,7 @@ def create_parser():
     # -------------------------------------------常用设置---------------------------------------------
     # 基础配置  --config_file是关键
     parser.add_argument('--config_file', '-c', type=str,
-                        default='./configs/sc_depth/kitti.py',
+                        default='./configs/darknet/midair.py',
                         help='额外的配置文件所在路径')
     parser.add_argument('--work_dir', type=str,
                         default='./work_dirs',
@@ -72,8 +72,13 @@ def create_parser():
     parser.add_argument('--batch_size', type=int,
                         default=4,
                         help='每个小批次的大小')
-    parser.add_argument('--val_mode', type=str, default='photo',
+    parser.add_argument('--folder_type', type=str, choices=['sequence', 'pair'],
+                        default='sequence', help='数据集训练模型')
+    parser.add_argument('--val_mode', type=str, default='depth',
                         choices=['photo', 'depth'], help='验证模式')
+
+    parser.add_argument('--limit_val_batches',type=float,default=1.0,
+                        help='限制验证集的百分比')
     # 模型方法
     parser.add_argument('--method', type=str,
                         default='sc-depth',

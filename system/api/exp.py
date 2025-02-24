@@ -3,11 +3,13 @@ import time
 
 
 import torch
+from datetime import datetime as dt
 from fvcore.nn import FlopCountAnalysis, flop_count_table
 from path import Path
 
 from pytorch_lightning import Trainer, seed_everything
-from pytorch_lightning.loggers import TensorBoardLogger
+from pytorch_lightning.loggers import TensorBoardLogger, WandbLogger
+
 import pytorch_lightning.callbacks as lc
 from system.datasets import BaseDataModule
 from system.methods import method_maps
@@ -33,6 +35,7 @@ class BaseExperiment(object):
         :param dataloaders: 数据加载器
         :param strategy: 分布式训练策略
         """
+        print('step:2---->初始化实验基本信息')
         self.config = args
         self.method = None
         self.config.method = self.config.method.lower()  # 将方法名转为小写
@@ -44,21 +47,27 @@ class BaseExperiment(object):
                                      args.exp_name.spilt(args.work_dir + '/')[-1])  # 保存目录
         # ckpt_dir = {base_dir}/{exp_name}/{checkpoints}
         ckpt_dir = save_dir.joinpath('checkpoints')  # 检查点目录
-        seed_everything(self.config.seed)  # 设置随即种子，确保结果可复现
+        seed_everything(self.config.seed)  # 设置随机种子，确保结果可复现
+        # TODO
         self.data = self._get_data()
         # 根据方法名加载对应的训练方法
+        print('step:2.2---->设置模型信息')
         self.method = method_maps[self.config.method](self.config)
         # 加载回调函数和保存目录
+        print('step:2.3---->设置回调函数和保存目录')
         callbacks, self.save_dir = self._load_callbacks(args, save_dir, ckpt_dir)
+        print('step:2.5---->初始化训练器')
         self.trainer = self._init_trainer(args, callbacks, strategy)
 
     def train(self):
         """训练模型"""
+        print(f'开始训练{self.config.method}方法')
         self.trainer.fit(self.method, self.data,
                          ckpt_path=self.config.ckpt_path if self.config.ckpt_path and self.config.resume else None)
 
     def test(self):
         """测试模型"""
+        print(f'开始测试{self.config.method}方法')
         if self.config.test:
             # 如果是测试模式，加载最佳模型检查点
             ckpt = torch.load(self.save_dir.joinpath('checkpoints', 'best.ckpt'))
@@ -69,6 +78,7 @@ class BaseExperiment(object):
         """
         准备数据集和数据加载器
         """
+        print('step:2.1---->准备数据集和数据加载器')
         return BaseDataModule(self.config)
 
     def _init_trainer(self, args, callbacks, strategy):
@@ -80,9 +90,15 @@ class BaseExperiment(object):
             strategy (): 分布式训练测量
         Returns:
         """
-        logger = TensorBoardLogger(
+        print('初始化Trainer')
+        # logger = TensorBoardLogger(
+        #     save_dir=self.save_dir,
+        #     name='logger'
+        # )
+        logger = WandbLogger(
             save_dir=self.save_dir,
-            name='logger'
+            name=f'logger_{dt.now().strftime("%h_%d_%H_%M")}',
+            project=self.config.exp_name, # 设置项目名称
         )
         return Trainer(
             accelerator='gpu',
@@ -90,8 +106,8 @@ class BaseExperiment(object):
             devices=args.gpus,  # 使用指定的GPU
             max_epochs=args.epochs,  # 最大训练轮数
             limit_train_batches=args.epoch_size,  # 检查训练集的比例，float:百分比，int:批次数
-            limit_val_batches=200 if args.val_mode == 'photo' else 1.0,
-            num_sanity_val_steps=5,  # 在训练流程开始之前，运行n个批次进行检查
+            limit_val_batches=args.limit_val_batches,
+            num_sanity_val_steps=0,  # 在训练流程开始之前，运行n个批次进行检查
             callbacks=callbacks,
             logger=logger,
             benchmark=True,  # torch.backends.cudnn.benchmark
@@ -106,8 +122,10 @@ class BaseExperiment(object):
             ckpt_dir (): 检查点目录
         Returns:
         """
+        print('加载训练过程中的回调函数')
         method_info = None
         # 显示方法信息
+        print('step:2.3.1---->获取方法信息')
         if not args.no_display_method_info:
             method_info = self.display_method_info(args)
 
@@ -130,6 +148,7 @@ class BaseExperiment(object):
             save_last=True,  # 保存最后一个检查点
             dirpath=ckpt_dir,  # 检查点保存路径
             verbose=True,  # 显示日志
+            save_top_k=3,
             every_n_epochs=args.log_step  # 每N个Epoch保存一次
         )
 
@@ -138,10 +157,9 @@ class BaseExperiment(object):
         # 训练结束时回调
         # epochend_callback = EpochEndCallback()
         # callbacks = [setup_callback, ckpt_callback, epochend_callback,progress_bar_callback]
-        callbacks = [setup_callback, ckpt_callback, progress_bar_callback]
-        # 需要学习率监控，则添加学习率回调
-        if args.sched:
-            callbacks.append(lc.LearningRateMonitor(logging_interval='step'))
+        callbacks = [setup_callback, ckpt_callback, progress_bar_callback,
+                     lc.LearningRateMonitor(logging_interval='step')]  # 需要学习率监控，添加学习率回调
+
         return callbacks, save_dir
 
     def display_method_info(self, args):
@@ -151,6 +169,7 @@ class BaseExperiment(object):
             args (): 实验参数
         Returns:
         """
+        print(f'训练方法: {args.method}')
         device = torch.device(args.device)
         if args.device == 'cuda':
             assign_gpu = 'cuda:' + (str(args.gpus[0]) if len(args.gpus) == 1 else '0')
@@ -158,6 +177,8 @@ class BaseExperiment(object):
 
         # 根据不同方法构造输入数据
         if args.method in ['sc-depth']:
+            input_dummy = torch.ones(1, args.channels, args.height, args.width).to(device)
+        elif args.method in ['darknet']:
             input_dummy = torch.ones(1, args.channels, args.height, args.width).to(device)
         else:
             raise ValueError(f'Invalid method name {args.method}')

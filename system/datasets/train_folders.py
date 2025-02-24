@@ -66,12 +66,6 @@ class TrainSet(Dataset):
                 frame_index = [int(index) for index in open(scene.joinpath('frame_index.txt'))]
                 imgs = [imgs[d] for d in frame_index]
 
-            if self.with_pseudo_depth:
-                # 如果使用伪深度，读取伪深度文件
-                pseudo_depths = sorted((scene.joinpath('leres_depth')).files('*.png'))
-                if self.use_frame_index:  # 根据帧索引重新排序
-                    pseudo_depths = [pseudo_depths[d] for d in frame_index]
-
             # 如果图像数目小于序列长度，跳过该场景
             if len(imgs) < sequence_length:
                 continue
@@ -81,12 +75,10 @@ class TrainSet(Dataset):
             for sample_index in sample_index_list:
                 # 为每个样本生成目标图像和参考图像
                 sample = {'intrinsics': intrinsics,
-                          'tgt_img': imgs[sample_index['tgt_idx']]}  # 目标图像
-                if self.with_pseudo_depth:  # 伪深度
-                    sample['tgt_pseudo_depth'] = pseudo_depths[sample_index['tgt_idx']]
+                          'tgt_img': imgs[sample_index['tgt_idx']],  # 目标图像
+                          'ref_imgs': []}  # 参考图像
 
                 # 参考图像列表
-                sample['ref_imgs'] = []
                 for j in sample_index['ref_idx']:
                     sample['ref_imgs'].append(imgs[j])
                 sequnece_set.append(sample)
@@ -99,30 +91,16 @@ class TrainSet(Dataset):
         sample = self.samples[index]
         tgt_img = load_as_float(sample['tgt_img'])  # 目标图像
         ref_imgs = [load_as_float(ref_img) for ref_img in sample['ref_imgs']]  # 参考图像
-        # 目标图像的伪深度
-        if self.with_pseudo_depth:
-            tgt_pseudo_depth = load_as_float(sample['tgt_pseudo_depth'])
 
         # 如果定义了数据变换，则对图像进行变换
         if self.transform is not None:
-            if self.with_pseudo_depth:
-                img, intrinsics = self.transform([tgt_img, tgt_pseudo_depth] + ref_imgs,
-                                                 np.copy(sample['intrinsics']))
-                tgt_img = img[0]
-                tgt_pseudo_depth = img[1]
-                ref_imgs = img[2:]
-            else:
-                img, intrinsics = self.transform([tgt_img] + ref_imgs,
-                                                 np.copy(sample['intrinsics']))
-                tgt_img = img[0]
-                ref_imgs = img[1:]
+            img, intrinsics = self.transform([tgt_img] + ref_imgs,
+                                             np.copy(sample['intrinsics']))
+            tgt_img = img[0]
+            ref_imgs = img[1:]
         else:
             intrinsics = np.copy(sample['intrinsics'])
-
-        if self.with_pseudo_depth:
-            return tgt_img, tgt_pseudo_depth, ref_imgs, intrinsics
-        else:
-            return tgt_img, ref_imgs, intrinsics
+        return tgt_img, ref_imgs, intrinsics
 
     def __len__(self):
         """

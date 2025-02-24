@@ -161,3 +161,38 @@ class RescaleTo(object):
         else:
             output_intrinsics = None
         return scaled_images, output_intrinsics
+
+
+class RandomFlip(object):
+    def __call__(self, images, intrinsics):
+        if random.random() < 0.5:
+            flip_images = [np.copy(np.fliplr(im)) for im in images]  # 对每张图像进行水平反转
+        else:
+            flip_images = images
+        return flip_images, intrinsics
+
+class AugmentImagePair(object):
+    def __init__(self):
+        self.gamma_low = 0.8  # 0.8
+        self.gamma_high = 1.2  # 1.2
+        self.brightness_low = 0.5  # 0.5
+        self.brightness_high = 2.0  # 2.0
+        self.color_low = 0.8  # 0.8
+        self.color_high = 1.2  # 1.2
+
+    def __call__(self, images, intrinsics):
+        p = np.random.uniform(0, 1, 1)
+        if p > 0.5:
+
+            gamma = np.random.uniform(self.gamma_low, self.gamma_high)
+            brightness = np.random.uniform(self.brightness_low, self.brightness_high)
+            colors = np.random.uniform(self.color_low, self.color_high, 3)
+            for img in images:
+                # randomly shift gamma
+                # randomly shift brightness
+                img.pow_(gamma).mul_(brightness)
+                for c in range(3):
+                    img[c].mul_(colors[c])
+                img.clamp(0, 1)
+        return images, intrinsics
+

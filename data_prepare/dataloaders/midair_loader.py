@@ -10,7 +10,12 @@ class MidAirLoader:
     def __init__(self,config):
         self.config = config
         self.dataset_dir = Path(config.dataset_dir)
-        self.scenes = [scene.joinpath('color_left') for scene in  self.dataset_dir.dirs()]
+        file = ['Kite_training','PLE_training']
+        self.scenes = []
+        for f in file:
+            for scene in self.dataset_dir.joinpath(f).dirs():
+                self.scenes.append(scene.joinpath('color_left'))
+        print(self.scenes)
         print(f'total scenes collected: {len(self.scenes)}')
         # 获取所有的场景数据
         self.scenes_list = []
@@ -23,7 +28,7 @@ class MidAirLoader:
     def collect_scenes(self,scene):
         return scene.dirs()
 
-def split_dataset(paths,train_ratio=0.7,val_ratio=0.15,test_ratio=0.15):
+def split_dataset(paths,train_ratio=0.8,val_ratio=0.1,test_ratio=0.1):
     # 确保比例相加为1
     assert train_ratio + val_ratio + test_ratio == 1.0, "训练、验证和测试集比例之和必须为1.0"
     np.random.shuffle(paths)
@@ -42,7 +47,7 @@ def split_dataset(paths,train_ratio=0.7,val_ratio=0.15,test_ratio=0.15):
 def save_paths_to_file(paths, file_path):
     with open(file_path, 'w') as f:
         for path in paths:
-            f.write(path + '\n')
+            f.write(f'{path[1:]}\n')
 
 def main():
     args = create_parser()

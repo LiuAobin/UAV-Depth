@@ -1,5 +1,9 @@
+import logging
+
 import numpy as np
 import torch
+import wandb
+import wandb.wandb_run
 from system.core import compute_metrics as metrics
 from system.loss import (photo_and_geometry_loss, smooth_loss)
 from .base_method import BaseMethod
@@ -44,7 +48,6 @@ class SCDepthV1(BaseMethod):
         w1 = self.hparams.config.photo_weight  # 光度一致性损失权重
         w2 = self.hparams.config.geometry_weight  # 几何一致性损失权重
         w3 = self.hparams.config.smooth_weight  # 平滑损失权重
-
         loss_1, loss_2 = photo_and_geometry_loss(
             tgt_img, ref_imgs,
             tgt_depth, ref_depths,
@@ -58,6 +61,7 @@ class SCDepthV1(BaseMethod):
         self.log('train/photo_loss', loss_1)
         self.log('train/geometry_loss', loss_2)
         self.log('train/smooth_loss', loss_3)
+
         # 记录损失到列表中
         self.train_step_outputs.append(loss.item())  # 将损失添加到训练损失列表中
         return loss
@@ -78,11 +82,6 @@ class SCDepthV1(BaseMethod):
             tgt_img, gt_depth = batch  # 提取目标图像和真实深度
             tgt_depth = self.depth_net(tgt_img)  # 预测深度
             errs = metrics(gt_depth, tgt_depth, self.hparams.config.dataset_name)  # 计算误差
-            errs = {'abs_diff': errs[0],
-                    'abs_rel': errs[1], 'sq_rel': errs[2],
-                    'rmse': errs[3], 'rmse_log': errs[4],
-                    'a1': errs[5], 'a2': errs[6], 'a3': errs[7],
-                    'log10': errs[8]}
 
         elif self.hparams.config.val_mode == 'photo':  # 光度损失验证模式
             tgt_img, ref_imgs, intrinsics = batch  # 提取目标图像、参考图像和相机内参
@@ -105,8 +104,21 @@ class SCDepthV1(BaseMethod):
             vis_img = visualize_image(tgt_img[0])  # 转换为可视化图像
             vis_depth = visualize_depth(tgt_depth[0, 0])  # 转换为可视化深度
             stack = torch.cat([vis_img, vis_depth], dim=1).unsqueeze(0)  # 堆叠图像和深度图
-            self.logger.experiment.add_images('val/img_depth_{}'.format(batch_idx), stack, self.current_epoch)
+            self.logger.log_image(key='val/img_depth_{}'.format(batch_idx), images=[vis_img, vis_depth],step=self.current_epoch)
+            # wandb_logger.log_image(key="samples", images=[vis_img, vis_depth])
+            # self.logger.experiment.add_images('val/img_depth_{}'.format(batch_idx), stack, self.current_epoch)
         return errs
+
+
+    def on_train_epoch_start(self):
+        # self.progress_bar.disable = True  # 禁用进度条
+        # if hasattr(self, 'vali_log') and self.vali_log is not None:
+        #     print_log(self.vali_log)
+        # self.progress_bar.disable = False  # 恢复进度条显示
+        self.train_step_outputs = []
+
+    def on_validation_epoch_start(self):
+        self.validation_step_outputs = []
 
     def on_validation_epoch_end(self):
         """
@@ -118,7 +130,6 @@ class SCDepthV1(BaseMethod):
         mean_train_loss = np.mean(self.train_step_outputs)  # 计算训练损失的平均值
         lr = self.optimizers().param_groups[0]['lr']
         log_message = f'\n Epoch {self.current_epoch}: Lr: {lr:.7f} | train_loss: {mean_train_loss} | '
-
         # 验证阶段处理
         if self.hparams.config.val_mode == 'depth':
             log_data = {
@@ -135,11 +146,11 @@ class SCDepthV1(BaseMethod):
             }
         elif self.hparams.config.val_mode == 'photo':
             log_data = {'val_loss': np.array([x['photo_loss'] for x in self.validation_step_outputs]).mean()}
-
         # 记录日志和打印
         for key, value in log_data.items():
-            self.log(key, value, on_epoch=True, prog_bar=(key == 'val_loss'))
-        print_log(log_message + ''.join([f'{key}: {value:.4f} | ' for key, value in log_data.items()]))
+            self.logger.experiment.log(key, value, on_epoch=True,logger=True)
+        logging.info(log_message + ''.join([f'{key}: {value} | ' for key, value in log_data.items()]))
+
 
     def test_step(self, batch, batch_idx):
         """

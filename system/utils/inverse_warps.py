@@ -103,7 +103,7 @@ def inverse_warp(img, depth, ref_depth, pose, intrinsics, padding_mode='zeros'):
         computed_depth: 使用目标图像深度计算得到的源图像深度
     """
     B, _, H, W = img.size()
-    T = pose_vec2mat(pose)  # 获取变换矩阵
+    T = pose_vec2mat(pose)  # 获取变换矩阵  -- [B,3,4]
     P = torch.matmul(intrinsics, T)[:, :3, :]  # 计算投影矩阵
 
     world_points = depth_to_3d(depth, intrinsics)  # 从目标深度图获取视世界坐标 -- [B,3,H,W]
@@ -114,8 +114,8 @@ def inverse_warp(img, depth, ref_depth, pose, intrinsics, padding_mode='zeros'):
     pix_coords = cam_points[:, :2, :] / (cam_points[:, 2, :].unsqueeze(1) + 1e-7)
     pix_coords = pix_coords.view(B, 2, H, W)
     pix_coords = pix_coords.permute(0, 2, 3, 1)
-    pix_coords[..., 0] = W - 1
-    pix_coords[..., 1] = H - 1
+    pix_coords[..., 0] /= W - 1
+    pix_coords[..., 1] /= H - 1
     pix_coords = (pix_coords - 0.5) * 2  # 将像素坐标标准化到[-1,1]范围
 
     computed_depth = cam_points[:, 2, :].unsqueeze(1).view(B, 1, H, W)  # 计算深度图
@@ -149,8 +149,8 @@ def inverse_ration_warp(img, rot, intrinsics, padding_mode='zeros'):
     pix_coords = cam_points[:, :2, :] / (cam_points[:, 2, :].unsqueeze(1) + 1e-7)
     pix_coords = pix_coords.view(B, 2, H, W)
     pix_coords = pix_coords.permute(0, 2, 3, 1)
-    pix_coords[..., 0] = W - 1
-    pix_coords[..., 1] = H - 1
+    pix_coords[..., 0] /= W - 1
+    pix_coords[..., 1] /= H - 1
     pix_coords = (pix_coords - 0.5) * 2  # 将像素坐标标准化到[-1.1]范围
     # 使用网格采样对源图像进行采样
     projected_img = F.grid_sample(img, pix_coords,

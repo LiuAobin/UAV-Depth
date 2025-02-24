@@ -62,7 +62,7 @@ def crawl_folder(folder, dataset='ddad',img_suffix='*.jpg',depth_suffix='*.png')
     if dataset in ['nyu']:  # NYU数据集使用PNG格式的深度图
         depths = sorted(folder.joinpath('depth').files(depth_suffix))
     elif dataset in ['kitti']:  # KITTI使用NPY格式的深度图
-        depths = sorted(folder.joinpath('depth').files(depth_suffix))
+        depths = sorted(folder.joinpath('depth').files('*.npy'))
     elif dataset in ['ddad']:  # DDAD使用NPZ格式数据集
         depths = sorted(folder.joinpath('depth').files(depth_suffix))
     else:

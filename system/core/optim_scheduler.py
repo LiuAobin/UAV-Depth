@@ -151,7 +151,7 @@ def get_optim_scheduler(args, epoch, models, steps_per_epoch):
             optimizer = Lookahead(optimizer)
 
     # 获取学习率调度器的类型
-    sched_lower = args.sched.lower()
+    sched_lower = args.lr_scheduler.lower()
     total_steps = epoch * steps_per_epoch  # 计算总步骤数量
     by_epoch = True  # 默认按epoch更新学习率
     if sched_lower == 'onecycle':

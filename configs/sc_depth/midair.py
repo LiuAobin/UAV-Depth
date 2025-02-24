@@ -1,30 +1,35 @@
 #------------------------ 基础配置
 # config_file = './configs/sc_depth/kitti.py'  # 额外的配置文件所在路径
 work_dir='./work_dirs'  # 工作目录
-exp_name = f'depth_midair_clk'  # 实验名称
+exp_name = f'depth_midair_sc'  # 实验名称
 # seed = 8848  # 随机数种子
 # num_threads = 6  # 加载数据时使用的线程数
 # device = 'cuda'  # 使用gpu进行运算
 # gpus=[0]
-# resume=False  # 是否恢复训练
-# ckpt_path=None  # 模型恢复时检查点路径
+resume=True  # 是否恢复训练
+ckpt_path="E:\Depth\SC-Depth\work_dirs\depth_midair_sc\checkpoints\last.ckpt"  # 模型恢复时检查点路径
 # log_step=1  # 设置每隔多久保存一次最佳检查点
 resnet_layers = 18  # resnet层数
 #------------------------ 数据集信息
-dataset_dir='E:/Depth/origin-dataset/MidAir'  # 数据集根路径
+dataset_dir='/data/coding/MidAir'  # 数据集根路径
+# dataset_dir='E:/Depth/origin-dataset/MidAir'  # 数据集根路径
 dataset_name='midair'  # 数据集名称[kitti,midair]
 channels=3  # 输入图像通道数
 height=1024  # 输入图像高度
 width=1024  # 输入图像宽度
-# sequence_length=3  # 训练时使用的序列长度
-# skip_frames=1  # 序列的帧间间隔
+img_suffix='*.JPEG'
+depth_suffix='*.PNG'
+limit_val_batches=0.5  # 验证时限制的批次大小float类型，表示使用全部验证数据
+sequence_length=3  # 训练时使用的序列长度
+skip_frames=1  # 序列的帧间间隔
 # use_frame_index=False  # 是否使用帧索引
 #------------------------ 训练信息
 epochs=500  # 训练回合数
-epoch_size=2500  # 每回合大小
-batch_size=4  # 每个批次大小
-# val_mode='depth'  # 验证模式，深度or照片
-# method='sc-depth'  # 模型
+epoch_size=5000  # 每回合大小
+batch_size=8  # 每个批次大小
+val_mode='depth'  # 验证模式，'depth' or 'photo'
+folder_type='sequence'  # 数据集类型，'sequence' or 'pair'
+method='sc-depth'  # 模型
 # test=False  # 是否只进行测试
 # no_display_method_info=False  # 是否显示方法信息
 # fps=True  # 显示帧率
@@ -32,7 +37,7 @@ batch_size=4  # 每个批次大小
 #------------------------ 优化器信息
 opt='adamw'  # 优化器
 lr= 1e-3  # 学习率
-warmup_lr= 1e-5  # 预热学习率
+warmup_lr= 4e-5  # 预热学习率
 min_lr= 1e-6  # 最小的学习率
 lr_scheduler='onecycle'  # 学习率调度器
 final_div_factor=1e4  # min_lr = initial_lr/final_div_factor for onecycle scheduler
@@ -55,9 +60,9 @@ final_div_factor=1e4  # min_lr = initial_lr/final_div_factor for onecycle schedu
 # no_auto_mask=False  # masking invalid static points
 # no_dynamic_mask=False  # masking dynamic regions
 # no_min_optimize=False  # optimize the minimum loss
-# photo_weight=1.0  # photometric loss weight
-# geometry_weight=0.1  # geometry loss weight
-# smooth_weight=0.1  # smoothness loss weight
+photo_weight=1.0  # photometric loss weight
+geometry_weight=0.1  # geometry loss weight
+smooth_weight=0.1  # smoothness loss weight
 # sc-depth-v3的参数
 # load_pseudo_depth=False  # 是否使用伪深度
 

@@ -1,37 +1,38 @@
 #------------------------ 基础配置
 # config_file = './configs/sc_depth/kitti.py'  # 额外的配置文件所在路径
-# work_dir='./work_dirs'  # 工作目录
-from configs.sc_depth.kitti import depth_suffix
-
-exp_name = 'total_config'  # 实验名称
+work_dir='./work_dirs'  # 工作目录
+exp_name = f'depth_midair_darknet'  # 实验名称
 # seed = 8848  # 随机数种子
-num_threads = 6  # 加载数据时使用的线程数
-device = 'cuda'  # 使用gpu进行运算
+# num_threads = 6  # 加载数据时使用的线程数
+# device = 'cuda'  # 使用gpu进行运算
 # gpus=[0]
 # resume=False  # 是否恢复训练
 # ckpt_path=None  # 模型恢复时检查点路径
 # log_step=1  # 设置每隔多久保存一次最佳检查点
+resnet_layers = 18  # resnet层数
 #------------------------ 数据集信息
-dataset_dir=None  # 数据集根路径
-dataset_name=None  # 数据集名称[kitti,midair]
-img_suffix=''
-depth_suffix=''
-# channels=3  # 输入图像通道数
-# height=1024  # 输入图像高度
-# width=1024  # 输入图像宽度
+dataset_dir='/data/coding/MidAir'  # 数据集根路径
+# dataset_dir='E:/Depth/origin-dataset/MidAir'  # 数据集根路径
+dataset_name='midair'  # 数据集名称[kitti,midair]
+channels=3  # 输入图像通道数
+height=1024  # 输入图像高度
+width=1024  # 输入图像宽度
+img_suffix='*.JPEG'
+depth_suffix='*.PNG'
+limit_val_batches=0.5  # 验证时限制的批次大小float类型，表示使用全部验证数据
 # sequence_length=3  # 训练时使用的序列长度
-# skip_frames=1  # 序列的帧间间隔
-use_frame_index=False  # 是否使用帧索引
+skip_frames=3  # 序列的帧间间隔
+# use_frame_index=False  # 是否使用帧索引
 #------------------------ 训练信息
 epochs=500  # 训练回合数
-epoch_size=2500  # 每回合大小
-batch_size=4  # 每个批次大小
-limit_val_batches=1.0  # 验证时限制批次大小
-# val_mode='depth'  # 验证模式，深度or照片
-# method='sc-depth'  # 模型
+epoch_size=1000  # 每回合大小
+batch_size=6  # 每个批次大小
+val_mode='photo'  # 验证模式，'depth' or 'photo'
+folder_type='pair'  # 数据集类型，'sequence' or 'pair'
+method='darknet'  # 模型
 # test=False  # 是否只进行测试
 # no_display_method_info=False  # 是否显示方法信息
-# fps=True  # 显示帧率
+fps=False  # 显示帧率
 # metric_for_bestckpt='val_loss'  # 检查那个损失指标作为保持最佳检查点的信息
 #------------------------ 优化器信息
 opt='adamw'  # 优化器
@@ -52,8 +53,8 @@ final_div_factor=1e4  # min_lr = initial_lr/final_div_factor for onecycle schedu
 # clip_gard=0  # 梯度裁剪范数
 #------------------------ 其他信息
 # 'zeros表示在超出目标图像范围时梯度为0，border表示仅在x或y坐标超出时梯度为0
-padding_mode='zeros'  #图像扭曲时的填充模式，对于光度差异化来说，当坐标超出目标图像范围时使用该模式.
-with_gt=True  # 验证时是否使用地面真值
+# padding_mode='zeros'  #图像扭曲时的填充模式，对于光度差异化来说，当坐标超出目标图像范围时使用该模式.
+# with_gt=True  # 验证时是否使用地面真值
 # 损失函数相关
 # no_ssim=False  # use ssim in photometric loss
 # no_auto_mask=False  # masking invalid static points

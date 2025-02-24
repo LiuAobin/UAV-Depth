@@ -1,5 +1,5 @@
 from .custom_transforms import (Compose, Normalize, ArrayToTensor,
-                                RandomHorizontalFlip, RandomScaleCrop, RescaleTo)
+                                RandomHorizontalFlip, RandomScaleCrop, RescaleTo, AugmentImagePair, RandomFlip)
 from .pair_folders import PairSet
 from .test_folders import TestSet
 from .train_folders import TrainSet
@@ -16,8 +16,8 @@ dataset_map = {
     'pair_val': PairSet,
 }
 __all__ = [
-    'Compose', 'Normalize', 'ArrayToTensor',
-    'RandomHorizontalFlip', 'RandomScaleCrop', 'RescaleTo',
+    'Compose', 'Normalize', 'ArrayToTensor', 'AugmentImagePair',
+    'RandomHorizontalFlip', 'RandomScaleCrop', 'RescaleTo','RandomFlip',
     'TrainSet', 'TestSet', 'ValidationSet',
     'dataset_map',
     'BaseDataModule'
