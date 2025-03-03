@@ -3,7 +3,7 @@ import logging
 import numpy as np
 import torch
 import wandb
-import wandb.wandb_run
+
 from system.core import compute_metrics as metrics
 from system.loss import (photo_and_geometry_loss, smooth_loss)
 from .base_method import BaseMethod
@@ -21,6 +21,8 @@ class SCDepthV1(BaseMethod):
     def _build_model(self):
         self.depth_net = DepthNet(self.hparams.config.resnet_layers)  # 深度估计网络
         self.pose_net = PoseNet()  # 位姿估计网络
+        self.logger.watch(self.depth_net,log="all")
+        self.logger.watch(self.pose_net, log="all")
         return [self.depth_net, self.pose_net]
 
     def forward(self, batch):
@@ -82,7 +84,7 @@ class SCDepthV1(BaseMethod):
             tgt_img, gt_depth = batch  # 提取目标图像和真实深度
             tgt_depth = self.depth_net(tgt_img)  # 预测深度
             errs = metrics(gt_depth, tgt_depth, self.hparams.config.dataset_name)  # 计算误差
-
+            self.log('test/abs_rel', errs['abs_rel'])
         elif self.hparams.config.val_mode == 'photo':  # 光度损失验证模式
             tgt_img, ref_imgs, intrinsics = batch  # 提取目标图像、参考图像和相机内参
             poses, poses_inv, ref_depths, tgt_depth = self.predict(ref_imgs, tgt_img)
@@ -103,8 +105,12 @@ class SCDepthV1(BaseMethod):
         if batch_idx < 5:
             vis_img = visualize_image(tgt_img[0])  # 转换为可视化图像
             vis_depth = visualize_depth(tgt_depth[0, 0])  # 转换为可视化深度
-            stack = torch.cat([vis_img, vis_depth], dim=1).unsqueeze(0)  # 堆叠图像和深度图
-            self.logger.log_image(key='val/img_depth_{}'.format(batch_idx), images=[vis_img, vis_depth],step=self.current_epoch)
+            self.logger.experiment.log({
+                f'img/img_depth_{batch_idx}': [wandb.Image(vis_img, caption='img'),
+                                               wandb.Image(vis_depth, caption='depth')],
+                'step': self.current_epoch
+            })
+            # self.logger.log_image(key='img/img_depth_{}'.format(batch_idx), images=[vis_img, vis_depth],step=self.current_epoch)
             # wandb_logger.log_image(key="samples", images=[vis_img, vis_depth])
             # self.logger.experiment.add_images('val/img_depth_{}'.format(batch_idx), stack, self.current_epoch)
         return errs
@@ -132,8 +138,8 @@ class SCDepthV1(BaseMethod):
         log_message = f'\n Epoch {self.current_epoch}: Lr: {lr:.7f} | train_loss: {mean_train_loss} | '
         # 验证阶段处理
         if self.hparams.config.val_mode == 'depth':
+            val_loss = np.array([x['abs_rel'] for x in self.validation_step_outputs]).mean()
             log_data = {
-                'val_loss': np.array([x['abs_rel'] for x in self.validation_step_outputs]).mean(),
                 'val/abs_diff': np.array([x['abs_diff'] for x in self.validation_step_outputs]).mean(),
                 'val/abs_rel': np.array([x['abs_rel'] for x in self.validation_step_outputs]).mean(),
                 'val/sq_rel': np.array([x['sq_rel'] for x in self.validation_step_outputs]).mean(),
@@ -144,11 +150,16 @@ class SCDepthV1(BaseMethod):
                 'val/a3': np.array([x['a3'] for x in self.validation_step_outputs]).mean(),
                 'val/log10': np.array([x['log10'] for x in self.validation_step_outputs]).mean()
             }
+            self.logger.log_metrics(log_data,step=self.current_epoch+1)
         elif self.hparams.config.val_mode == 'photo':
-            log_data = {'val_loss': np.array([x['photo_loss'] for x in self.validation_step_outputs]).mean()}
+            val_loss = np.array([x['photo_loss'] for x in self.validation_step_outputs]).mean()
+            # log_data = {'val_loss': np.array([x['photo_loss'] for x in self.validation_step_outputs]).mean()}
         # 记录日志和打印
-        for key, value in log_data.items():
-            self.logger.experiment.log(key, value, on_epoch=True,logger=True)
+        # for key, value in log_data.items():
+        # self.logger.experiment.define_metric('test/mean', step_metric="test/abs_rel",summary='mean')
+        self.log('val_loss', val_loss)
+
+        # self.log_dict(log_data, prog_bar=True, logger=True, on_step=False, on_epoch=True, sync_dist=True)
         logging.info(log_message + ''.join([f'{key}: {value} | ' for key, value in log_data.items()]))
 
 

@@ -7,7 +7,7 @@ import imageio.v2
 import numpy as np
 
 from .base_loader import BaseLoader
-from utils import *
+from .kitti_utils import *
 
 
 class KittiRawLoader(BaseLoader):

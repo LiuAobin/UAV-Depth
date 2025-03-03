@@ -14,7 +14,7 @@ import pytorch_lightning.callbacks as lc
 from system.datasets import BaseDataModule
 from system.methods import method_maps
 from system.utils import (SetupCallback, BestCheckpointCallback, measure_throughput,
-                          MyTQDMProgressBar)
+                          MyTQDMProgressBar, check_dir)
 
 # 实验相关
 """
@@ -45,6 +45,7 @@ class BaseExperiment(object):
         # save_dir = {base_dir}/{exp_name}
         save_dir = base_dir.joinpath(args.exp_name if not args.exp_name.startswith(base_dir) else
                                      args.exp_name.spilt(args.work_dir + '/')[-1])  # 保存目录
+        check_dir(save_dir)  # 检查目录是否存在，不存在则创建
         # ckpt_dir = {base_dir}/{exp_name}/{checkpoints}
         ckpt_dir = save_dir.joinpath('checkpoints')  # 检查点目录
         seed_everything(self.config.seed)  # 设置随机种子，确保结果可复现
@@ -99,6 +100,7 @@ class BaseExperiment(object):
             save_dir=self.save_dir,
             name=f'logger_{dt.now().strftime("%h_%d_%H_%M")}',
             project=self.config.exp_name, # 设置项目名称
+            log_model=False, # 不记录模型
         )
         return Trainer(
             accelerator='gpu',

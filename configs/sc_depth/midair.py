@@ -7,7 +7,7 @@ exp_name = f'depth_midair_sc'  # 实验名称
 # device = 'cuda'  # 使用gpu进行运算
 # gpus=[0]
 resume=True  # 是否恢复训练
-ckpt_path="E:\Depth\SC-Depth\work_dirs\depth_midair_sc\checkpoints\last.ckpt"  # 模型恢复时检查点路径
+ckpt_path="/data/coding/SC-Depth/work_dirs/depth_midair_sc/checkpoints/last-v9.ckpt"  # 模型恢复时检查点路径
 # log_step=1  # 设置每隔多久保存一次最佳检查点
 resnet_layers = 18  # resnet层数
 #------------------------ 数据集信息
@@ -19,14 +19,14 @@ height=1024  # 输入图像高度
 width=1024  # 输入图像宽度
 img_suffix='*.JPEG'
 depth_suffix='*.PNG'
-limit_val_batches=0.5  # 验证时限制的批次大小float类型，表示使用全部验证数据
+limit_val_batches=0.5  # 验证时限制的批次大小float类型，1.0表示使用全部验证数据
 sequence_length=3  # 训练时使用的序列长度
 skip_frames=1  # 序列的帧间间隔
 # use_frame_index=False  # 是否使用帧索引
 #------------------------ 训练信息
 epochs=500  # 训练回合数
-epoch_size=5000  # 每回合大小
-batch_size=8  # 每个批次大小
+epoch_size=2500  # 每回合大小
+batch_size=4  # 每个批次大小
 val_mode='depth'  # 验证模式，'depth' or 'photo'
 folder_type='sequence'  # 数据集类型，'sequence' or 'pair'
 method='sc-depth'  # 模型
