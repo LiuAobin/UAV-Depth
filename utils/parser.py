@@ -49,7 +49,7 @@ def create_parser():
     parser.add_argument("--channels", type=int,
                         default=3,
                         help='通道数')
-    parser.add_argument("--height", type=int,
+    parser.add_argument("--F", type=int,
                         default=256,
                         help='图像高度')
     parser.add_argument("--width", type=int,
@@ -58,11 +58,49 @@ def create_parser():
     parser.add_argument('--sequence_length', type=int,
                         default=3,
                         help='训练时使用的序列长度')
+    parser.add_argument("--min_depth",
+                             type=float,
+                             help="minimum depth",
+                             default=0.01)
+    parser.add_argument("--max_depth",
+                             type=float,
+                             help="maximum depth",
+                             default=80.0)
+    parser.add_argument("--scales",
+                        nargs="+",
+                        type=int,
+                        help="scales used in the loss",
+                        default=[0])
     parser.add_argument('--skip_frames', type=int, default=1,
                         help='图像序列的帧间间隔')
     parser.add_argument('--use_frame_index', action='store_true',
                         help='过滤掉视频中的静态帧')
     # 训练信息
+    parser.add_argument("--num_layers",
+                             type=int,
+                             help="指定ResNet的层数，不同的层数表示不同的ResNet变体",
+                             default=50,
+                             choices=[18, 34, 50, 101, 152])
+    parser.add_argument("--model_dim",
+                             type=int,
+                             help="模型维度",
+                             default=32)
+    parser.add_argument("--num_features",
+                             type=int,
+                             help="编码器最终输出的特征维度",
+                             default=512)
+    parser.add_argument("--patch_size",
+                             type=int,
+                             help="patch size before ViT",
+                             default=32)
+    parser.add_argument("--query_nums",
+                             type=int,
+                             help="number of queries, should be less than h*w/p^2",
+                             default=128)
+    parser.add_argument("--dim_out",
+                        type=int,
+                        help="number of bins/分箱数量",
+                        default=128)
     parser.add_argument('--epochs', type=int,
                         default=500,
                         help='训练总轮数')

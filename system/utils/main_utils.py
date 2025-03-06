@@ -36,7 +36,7 @@ def check_dir(path):
 
 
 def print_log(message):
-    print(message)
+    # print(message)
     logging.info(message)
 
 

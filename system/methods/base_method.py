@@ -7,7 +7,7 @@ class BaseMethod(LightningModule):
         super().__init__()
         # 保存超参数
         self.save_hyperparameters()
-        self.models = self._build_model()  # 子类具体实验模型构建逻辑
+
 
 
     def _build_model(self):

@@ -52,12 +52,9 @@ class BaseExperiment(object):
         # TODO
         self.data = self._get_data()
         # 根据方法名加载对应的训练方法
-        print('step:2.2---->设置模型信息')
         self.method = method_maps[self.config.method](self.config)
         # 加载回调函数和保存目录
-        print('step:2.3---->设置回调函数和保存目录')
         callbacks, self.save_dir = self._load_callbacks(args, save_dir, ckpt_dir)
-        print('step:2.5---->初始化训练器')
         self.trainer = self._init_trainer(args, callbacks, strategy)
 
     def train(self):
@@ -103,9 +100,12 @@ class BaseExperiment(object):
             log_model=False, # 不记录模型
         )
         return Trainer(
-            accelerator='gpu',
+
             strategy=strategy,  # 分布式策略，如 'ddp','deepspeed_stage_2','ddp_find_unused_parameters_false'
-            devices=args.gpus,  # 使用指定的GPU
+            # accelerator='gpu',
+            # devices=args.gpus,  # 使用指定的GPU
+            accelerator='auto',
+            devices='auto',  # 使用指定的GPU
             max_epochs=args.epochs,  # 最大训练轮数
             limit_train_batches=args.epoch_size,  # 检查训练集的比例，float:百分比，int:批次数
             limit_val_batches=args.limit_val_batches,

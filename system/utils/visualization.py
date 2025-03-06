@@ -1,3 +1,4 @@
+import torch
 import torchvision.transforms as T
 import numpy as np
 import cv2
@@ -13,9 +14,13 @@ def visualize_image(image):
         torch.Tensor:反归一化后的图像
 
     """
-    # 反归一化操作，将图像从[0,1]区间转换回[0.45,0.675]之间
-    x = (image.cpu() * 0.225 + 0.45)  # 反归一化公式image = image*std+mean
-    return x
+    # 反归一化操作，将图像从[0,1]区间
+    mean = torch.tensor([0.485, 0.456, 0.406], device=image.device).view(3, 1, 1)
+    std = torch.tensor([0.229, 0.224, 0.225], device=image.device).view(3, 1, 1)
+
+    x = image * std + mean  # 反归一化
+    x = torch.clamp(x, 0, 1)  # 限制到 [0,1] 范围
+    return x  # 反归一化公式image = image*std+mean
 
 
 def visualize_depth(depth, cmap=cv2.COLORMAP_JET):

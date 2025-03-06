@@ -48,7 +48,7 @@ class MidAirSet(Dataset):
                 trajectory_xxxx:
                         xxxxxx.jpeg
     内参矩阵
-     $$\mathbf{K} = \begin{bmatrix} f_x & 0 & 0 & c_x \\ 0 & f_y & c_y \\ 0 & 0 & 1 \end{bmatrix} \quad \text{with} \quad f_x=c_x= w/2 \ \text{and} \ f_y=c_y= h/2 $$
+     $$\mathbf{K} = \begin{bmatrix} f_x & 0 & c_x \\ 0 & f_y & c_y \\ 0 & 0 & 1 \end{bmatrix} \quad \text{with} \quad f_x=c_x= w/2 \ \text{and} \ f_y=c_y= h/2 $$
     """
     def __init__(self, cfg, stage='train',transform=None):
         """

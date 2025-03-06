@@ -14,6 +14,7 @@ from system.models import DepthNet, PoseNet
 class SCDepthV1(BaseMethod):
     def __init__(self, config):
         super(SCDepthV1, self).__init__(config)
+        self.models = self._build_model()  # 子类具体实验模型构建逻辑
         self.validation_step_outputs = []
         self.train_step_outputs = []
         self.test_step_outputs = []
@@ -21,8 +22,7 @@ class SCDepthV1(BaseMethod):
     def _build_model(self):
         self.depth_net = DepthNet(self.hparams.config.resnet_layers)  # 深度估计网络
         self.pose_net = PoseNet()  # 位姿估计网络
-        self.logger.watch(self.depth_net,log="all")
-        self.logger.watch(self.pose_net, log="all")
+
         return [self.depth_net, self.pose_net]
 
     def forward(self, batch):
@@ -31,7 +31,9 @@ class SCDepthV1(BaseMethod):
         """
         depth = self.depth_net(batch)  # 计算深度
         return depth
-
+    def on_train_start(self) -> None:
+        wandb.watch(self.depth_net, log="all")
+        wandb.watch(self.pose_net, log="all")
     def training_step(self, batch, batch_idx):
         """
         参数:
