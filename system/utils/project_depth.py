@@ -5,30 +5,35 @@ class BackProjectDepth(nn.Module):
     """
     将深度图转换为点云
     """
-    def __init__(self,batch_size, height, width):
+    def __init__(self,height, width):
         super(BackProjectDepth, self).__init__()
         # 保存输入
-        self.batch_size = batch_size
         self.height = height
         self.width = width
+
         # 创建网格坐标：通过 meshgrid 创建一个 [width, height] 的网格
         meshgrid = np.meshgrid(range(self.width), range(self.height), indexing='xy')
         # 形状：[2, height, width]
         id_coords = np.stack(meshgrid, axis=0).astype(np.float32)
+        # 将网格坐标 id_coords 注册为 buffer，不参与训练，但需要在模型迁移时被保存
         self.register_buffer("id_coords", torch.from_numpy(id_coords))
-        # 不依赖 batch_size
-        ones = torch.ones(1,1,self.height * self.width)
-        self.register_buffer("ones", ones)
 
+        # 将网格坐标转换为像素坐标：每个像素的 (x, y) 坐标
         pix_coords = torch.stack(
-            [id_coords[0].view(-1), id_coords[1].view(-1)], 0)
-        # Shape: [1, 2, H*W]
+            [self.id_coords[0].view(-1), self.id_coords[1].view(-1)], 0)
+        # 将像素坐标注册为 buffer，形状：[1, 2, height * width]，即批次为 1 时的像素坐标
         self.register_buffer("pix_coords", pix_coords.unsqueeze(0))
+
+        # 创建一个全为 1 的 tensor，形状：[1, 1, height * width]
+        ones = torch.ones(1, 1, self.height * self.width)
+        # 将 ones 注册为 buffer，形状：[1, 1, height * width]，不依赖 batch_size
+        self.register_buffer("ones", ones)
 
     def forward(self, depth, inv_K):
         batch_size = depth.shape[0]
         # 复制坐标，使其batch维度匹配输入
-        pix_coords = self.pix_coords.repeat(batch_size, -1, -1)
+        # 将 pix_coords 和 ones 按照 batch_size 进行重复，形状变为 [batch_size, 3, height * width]
+        pix_coords = self.pix_coords.repeat(batch_size, 1, 1)
         ones = self.ones.repeat(batch_size, 1, 1)
 
         # 拼接3D像素坐标
@@ -47,7 +52,7 @@ class Project3D(nn.Module):
     该层将三维点投影到相机的二维图像平面中，使用给定的内参矩阵 K 和外参矩阵 T 进行变换。
     """
 
-    def __init__(self,batch_size, height, width, eps=1e-7):
+    def __init__(self,height, width, eps=1e-7):
         """
         初始化投影层
         参数：
@@ -56,7 +61,7 @@ class Project3D(nn.Module):
         - eps: 一个小值，用于避免除零错误（默认 1e-7）
         """
         super(Project3D, self).__init__()
-        self.batch_size = batch_size
+
         self.height = height
         self.width = width
         self.eps = eps  # 防止数值不稳定

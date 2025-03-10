@@ -79,24 +79,40 @@ def get_optim_scheduler(args, epoch, models, steps_per_epoch):
     """
     获取优化器和学习率调度器的函数
     """
-    if not isinstance(models, (list, tuple)):
+
+    if not isinstance(models, (list, tuple,dict)):
         models = [models]
+
 
     opt_lower = args.opt.lower()  # 获取优化器名字并转换为小写
     weight_decay = args.weight_decay  # 获取梯度衰减系数
     parameters = []
-    for model in models:
-        # 过滤掉偏置和归一化项
-        if args.filter_bias_and_bn:
-            if hasattr(model, 'no_weight_decay'):
-                skip = model.no_weight_decay()  # 获取需要跳过的参数
-            else:
-                skip = {}
-            # 获取带有权重衰减的参数
-            parameters += get_parameter_groups(model, weight_decay, skip)
-            weight_decay = 0.  # 不使用权重衰减
-        else:  # 对所有参数进行权重衰减
-            parameters += model.parameters()
+    if isinstance(models, dict):
+        for model in list(models.values()):
+            # 过滤掉偏置和归一化项
+            if args.filter_bias_and_bn:
+                if hasattr(model, 'no_weight_decay'):
+                    skip = model.no_weight_decay()  # 获取需要跳过的参数
+                else:
+                    skip = {}
+                # 获取带有权重衰减的参数
+                parameters += get_parameter_groups(model, weight_decay, skip)
+                weight_decay = 0.  # 不使用权重衰减
+            else:  # 对所有参数进行权重衰减
+                parameters += model.parameters()
+    else:
+        for model in models:
+            # 过滤掉偏置和归一化项
+            if args.filter_bias_and_bn:
+                if hasattr(model, 'no_weight_decay'):
+                    skip = model.no_weight_decay()  # 获取需要跳过的参数
+                else:
+                    skip = {}
+                # 获取带有权重衰减的参数
+                parameters += get_parameter_groups(model, weight_decay, skip)
+                weight_decay = 0.  # 不使用权重衰减
+            else:  # 对所有参数进行权重衰减
+                parameters += model.parameters()
 
     # 获取优化器参数
     opt_args = optim_parameters.get(opt_lower, dict())
@@ -158,7 +174,7 @@ def get_optim_scheduler(args, epoch, models, steps_per_epoch):
         lr_scheduler = optim.lr_scheduler.OneCycleLR(
             optimizer,
             max_lr=args.lr,
-            total_steps=total_steps // len(args.gpus),
+            total_steps=total_steps,
             final_div_factor=getattr(args, 'final_div_factor', 1e4))
         by_epoch = False
     elif sched_lower == 'cosine':

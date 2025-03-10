@@ -51,23 +51,14 @@ def compute_depth_errors(valid_gt, valid_pred, min_depth, max_depth):
 
     # 计算误差指标
     thresh = torch.max((valid_gt / valid_pred), (valid_pred / valid_gt))
-    # a1 = (thresh < 1.25).float().mean()
-    # a2 = (thresh < 1.25 ** 2).float().mean()
-    # a3 = (thresh < 1.25 ** 3).float().mean()
-    #
-    # diff_i = valid_gt - valid_pred
-    # abs_diff = torch.mean(torch.abs(diff_i))
-    # abs_rel = torch.mean(torch.abs(diff_i) / valid_gt.clamp(min=1e-8))  # 防止除零
-    # sq_rel = torch.mean(torch.pow(diff_i, 2) / valid_gt.clamp(min=1e-8))
-    # rmse = torch.sqrt(torch.mean(torch.pow(diff_i, 2)))
     metrics = {
-        'a1': (thresh < 1.25       ).float().mean(),
-        'a2': (thresh < (1.25 ** 2)).float().mean(),
-        'a3': (thresh < (1.25 ** 3)).float().mean(),
-        'abs_diff': torch.mean(torch.abs(valid_gt - valid_pred)),
-        'abs_rel': torch.mean(torch.abs(valid_gt - valid_pred) / valid_gt.clamp(min=1e-8)),
-        'sq_rel': torch.mean(torch.pow(valid_gt - valid_pred, 2) / valid_gt.clamp(min=1e-8)),
-        'rmse': torch.sqrt(torch.mean(torch.pow(valid_gt - valid_pred, 2))),
+        'da/a1': (thresh < 1.25       ).float().mean(),
+        'da/a2': (thresh < (1.25 ** 2)).float().mean(),
+        'da/a3': (thresh < (1.25 ** 3)).float().mean(),
+        'de/abs_diff': torch.mean(torch.abs(valid_gt - valid_pred)),
+        'de/abs_rel': torch.mean(torch.abs(valid_gt - valid_pred) / valid_gt.clamp(min=1e-8)),
+        'de/sq_rel': torch.mean(torch.pow(valid_gt - valid_pred, 2) / valid_gt.clamp(min=1e-8)),
+        'de/rmse': torch.sqrt(torch.mean(torch.pow(valid_gt - valid_pred, 2))),
     }
     # 对数误差（避免对数中的零或负值）
     if torch.any(valid_gt <= 0) or torch.any(valid_pred <= 0):
@@ -94,8 +85,8 @@ def compute_metrics(gt, pred, dataset):
     # abs_diff = abs_rel = sq_rel = rmse = rmse_log = a1 = a2 = a3 = log10 = 0
     # 使用字典来存储所有指标的累加值
 
-    metrics = {'a1': 0, 'a2': 0, 'a3': 0, 'abs_diff': 0, 'abs_rel': 0,
-               'sq_rel': 0, 'rmse': 0, 'rmse_log': 0, 'log10': 0}
+    # metrics = {'da/a1': 0, 'da/a2': 0, 'da/a3': 0, 'de/abs_diff': 0, 'de/abs_rel': 0,
+    #            'de/sq_rel': 0, 'de/rmse': 0, 'de/rmse_log': 0, 'de/log10': 0}
     batch_size, h, w = gt.shape
     valid_samples = 0  # 用于统计有效样本的数量
 
@@ -132,7 +123,7 @@ def compute_metrics(gt, pred, dataset):
     # 返回所有误差指标的平均值mean[abs_diff, abs_rel, sq_rel, rmse, rmse_log, a1, a2, a3，log10]
     # return [metric.item() / batch_size for metric in [abs_diff, abs_rel, sq_rel, rmse, rmse_log, a1, a2, a3, log10]]
     # 使用有效样本数对所有误差指标进行归一化
-    return {key: value.item() / valid_samples for key, value in metrics.items()}
+    return {key: value / valid_samples for key, value in metrics.items()}
 
 
 if __name__ == '__main__':

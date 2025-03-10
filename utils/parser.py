@@ -10,7 +10,7 @@ def create_parser():
     parser = argparse.ArgumentParser(description="深度估计实验相关参数")
     # -------------------------------------------常用设置---------------------------------------------
     # 基础配置  --config_file是关键
-    parser.add_argument('--config_file', '-c', type=str,
+    parser.add_argument('config_file', nargs='?', type=str,
                         default='./configs/darknet/midair.py',
                         help='额外的配置文件所在路径')
     parser.add_argument('--work_dir', type=str,
@@ -49,7 +49,7 @@ def create_parser():
     parser.add_argument("--channels", type=int,
                         default=3,
                         help='通道数')
-    parser.add_argument("--F", type=int,
+    parser.add_argument("--height", type=int,
                         default=256,
                         help='图像高度')
     parser.add_argument("--width", type=int,

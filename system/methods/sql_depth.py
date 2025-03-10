@@ -11,11 +11,13 @@ from .base_method import BaseMethod
 from system.utils import (print_log, transformation_from_parameters, convert_K_to_4x4,visualize_image,visualize_depth,
                           BackProjectDepth,Project3D)
 from system.core import compute_metrics
+from system.models import ResnetEncoderDecoder,PoseCNN,DepthDecoderQueryTr
+from system.loss import get_smooth_loss,compute_reprojection_loss
 
 class SQLDepth(BaseMethod):
 
     def __init__(self, config):
-        print('SQLDepth---->init sql_depth')
+        print('methods>SQLDepth---->init sql_depth')
         # 初始化函数，接收一个config参数
         super().__init__(config)# 调用父类的初始化函数
         self.config = config # 将config参数赋值给self.config
@@ -25,9 +27,7 @@ class SQLDepth(BaseMethod):
         self.models = {}
         # 调用_build_model函数
         self._build_model()
-        # 调用_build_projection函数
-        self._build_projection()
-        self._build_metrics()
+
 
     def _build_model(self):
         print_log('SQLDepth---->build model')
@@ -38,7 +38,7 @@ class SQLDepth(BaseMethod):
             model_dim = self.config.model_dim,
         )
         # 加载深度解码器
-        self.models['depth'] = Depth_Decoder_QueryTr(
+        self.models['depth'] = DepthDecoderQueryTr(
             in_channels = self.config.model_dim,
             patch_size=self.config.patch_size,
             dim_out=self.config.dim_out,
@@ -63,36 +63,49 @@ class SQLDepth(BaseMethod):
         w = self.config.width
         # 创建当前尺度下的反向投影深度
         self.backproject_depth = BackProjectDepth(
-            batch_size=self.config.batch_size,height=h,width=w
+            height=h,width=w
         ).to(self.device)
         # 创建当前尺度下的三维投影
         self.project_3d = Project3D(
-            batch_size=self.config.batch_size, height=h, width=w
+            height=h, width=w
         ).to(self.device)
 
     def _build_metrics(self):
         # 创建一个字典，用于存储不同尺度下的评估指标
         if self.config.val_mode == 'depth':
             self.val_metrics = {
-                'de/abs_diff':MeanMetric(),
-                'de/abs_rel':MeanMetric(),
-                'de/sq_rel':MeanMetric(),
-                'de/rmse':MeanMetric(),
-                'de/log_10':MeanMetric(),
-                'de/rmse_log':MeanMetric(),
-                'de/a1':MeanMetric(),
-                'de/a2':MeanMetric(),
-                'de/a3':MeanMetric(),
+                'de/abs_diff':MeanMetric().to(self.device),
+                'de/abs_rel':MeanMetric().to(self.device),
+                'de/sq_rel':MeanMetric().to(self.device),
+                'de/rmse':MeanMetric().to(self.device),
+                'de/log_10':MeanMetric().to(self.device),
+                'de/rmse_log':MeanMetric().to(self.device),
+                'da/a1':MeanMetric().to(self.device),
+                'da/a2':MeanMetric().to(self.device),
+                'da/a3':MeanMetric().to(self.device),
             }
         elif self.config.val_mode == 'photo':
             self.val_metrics = {
-                'loss':MeanMetric(),
-                'reprojection':MeanMetric(),
-                'smooth':MeanMetric(),
+                'loss':MeanMetric().to(self.device),
+                'reprojection':MeanMetric().to(self.device),
+                'smooth':MeanMetric().to(self.device),
             }
         else:
             raise NotImplementedError
 
+    def on_train_start(self) -> None:
+        """
+        监控模型
+        """
+        # 将模型移动到设备上
+        self.models['encoder'].to(self.device)
+        self.models['depth'].to(self.device)
+        self.models['pose'].to(self.device)
+        # 初始化投影和损失评估指标
+        self._build_projection()
+        self._build_metrics()
+        for name, model in self.models.items():
+            wandb.watch(model, log='all', log_freq=100)
 
     def training_step(self, batch, batch_idx):
         # 1. 提取目标图像、参考图像和相机内参
@@ -106,12 +119,13 @@ class SQLDepth(BaseMethod):
         # 生成合成视角图像
         self.generate_images_pred(intrinsics,ref_imgs,outputs)
         # 计算损失
-        loss,smooth_loss,reprojection_loss = self.compute_loss(outputs)
+        loss,smooth_loss,reprojection_loss = self.compute_loss(tgt_img,ref_imgs,outputs)
+
         self.log_dict({
             'train/loss':loss,
             'train/smooth':smooth_loss,
             'train/reprojection':reprojection_loss
-        },logger=True,prog_bar=True, on_step=True)
+        },logger=True,prog_bar=False, on_step=True)
         return loss
 
     def validation_step(self, batch, batch_idx):
@@ -124,7 +138,7 @@ class SQLDepth(BaseMethod):
                                  align_corners=False)
             depth = disp
             # 计算评估指标
-            metrics = compute_metrics(gt_depth, depth)
+            metrics = compute_metrics(gt_depth, depth,dataset=self.config.dataset_name)
             for key,value in metrics.items():
                self.val_metrics[key].update(value)
             # 可视化
@@ -144,7 +158,7 @@ class SQLDepth(BaseMethod):
             # 生成合成视角图像
             self.generate_images_pred(intrinsics, ref_imgs, outputs)
             # 计算损失
-            loss, smooth_loss, reprojection_loss = self.compute_loss(outputs)
+            loss, smooth_loss, reprojection_loss = self.compute_loss(tgt_img, ref_imgs,outputs)
             self.val_metrics['loss'].update(loss)
             self.val_metrics['smooth'].update(smooth_loss)
             self.val_metrics['reprojection'].update(reprojection_loss)
@@ -186,10 +200,13 @@ class SQLDepth(BaseMethod):
     def on_test_epoch_end(self) -> None:
         avg_metrics = {key: metric.compute() for key, metric in self.val_metrics.items()}
         self.log_dict(avg_metrics, logger=True, on_epoch=True, on_step=False)
+
     def predict_depth(self, input):
         features = self.models['encoder'](input)
         outputs = self.models['depth'](features)
         return outputs
+    def forward(self, batch):
+        return self.predict_depth(batch)
 
     def predict_poses(self, tgt_img, ref_imgs):
         outputs = {}
@@ -264,7 +281,6 @@ class SQLDepth(BaseMethod):
             outputs ():
         Returns:
         """
-        losses = {}
         loss = 0
         reprojection_losses = []
         # 获取深度，输入图像，原始视角的图像(在这里等于输入图像)
@@ -275,7 +291,8 @@ class SQLDepth(BaseMethod):
         for idx in range(len(ref_imgs)):
             pred = outputs[('color',idx)]
             # 计算预测图像和目标图像直接的重投影损失
-            reprojection_losses.append(compute_reprojection_loss(pred, target))
+            reprojection_losses.append(compute_reprojection_loss(pred, target,self.config.no_ssim))
+
         # 连接所有视角的重投影损失，以便后续求最小值(min loss)
         reprojection_losses = torch.cat(reprojection_losses, dim=1)
 
@@ -284,10 +301,12 @@ class SQLDepth(BaseMethod):
             identify_reprojection_losses = []
             for idx in range(len(ref_imgs)):
                 pred = outputs[('color_identify',idx)]
-                identify_reprojection_losses.append(compute_reprojection_loss(pred, target))
-            identity_reprojection_losses = torch.cat(identify_reprojection_losses, 1)
-            identity_reprojection_losses += torch.randn(identity_reprojection_losses.shape).to(identity_reprojection_losses.device) * 0.00001
+                identify_reprojection_losses.append(compute_reprojection_loss(pred, target,self.config.no_ssim))
 
+            identity_reprojection_losses = torch.cat(identify_reprojection_losses, 1)
+
+        if not self.config.no_auto_mask:
+            identity_reprojection_losses += torch.randn(identity_reprojection_losses.shape).to(identity_reprojection_losses.device) * 0.00001
             combined = torch.cat((identity_reprojection_losses, reprojection_losses), dim=1)
         else:
             combined = reprojection_losses
@@ -296,7 +315,8 @@ class SQLDepth(BaseMethod):
             to_optimise = combined
         else:
             to_optimise, idxs = torch.min(combined, dim=1)
-            outputs['identity_selection'] =  (idxs > identity_reprojection_loss.shape[1] - 1).float()
+        if not self.config.no_auto_mask:
+            outputs['identity_selection'] =  (idxs > identity_reprojection_losses.shape[1] - 1).float()
 
         loss += to_optimise.mean()
         # 计算平滑损失

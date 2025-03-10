@@ -35,7 +35,7 @@ class BaseExperiment(object):
         :param dataloaders: 数据加载器
         :param strategy: 分布式训练策略
         """
-        print('step:2---->初始化实验基本信息')
+        print('exp----> init experiment ...')
         self.config = args
         self.method = None
         self.config.method = self.config.method.lower()  # 将方法名转为小写
@@ -48,8 +48,7 @@ class BaseExperiment(object):
         check_dir(save_dir)  # 检查目录是否存在，不存在则创建
         # ckpt_dir = {base_dir}/{exp_name}/{checkpoints}
         ckpt_dir = save_dir.joinpath('checkpoints')  # 检查点目录
-        seed_everything(self.config.seed)  # 设置随机种子，确保结果可复现
-        # TODO
+        seed_everything(self.config.seed,verbose=False)  # 设置随机种子，确保结果可复现
         self.data = self._get_data()
         # 根据方法名加载对应的训练方法
         self.method = method_maps[self.config.method](self.config)
@@ -59,13 +58,13 @@ class BaseExperiment(object):
 
     def train(self):
         """训练模型"""
-        print(f'开始训练{self.config.method}方法')
+        print('exp---->training')
         self.trainer.fit(self.method, self.data,
                          ckpt_path=self.config.ckpt_path if self.config.ckpt_path and self.config.resume else None)
 
     def test(self):
         """测试模型"""
-        print(f'开始测试{self.config.method}方法')
+        print('exp---->testing')
         if self.config.test:
             # 如果是测试模式，加载最佳模型检查点
             ckpt = torch.load(self.save_dir.joinpath('checkpoints', 'best.ckpt'))
@@ -76,7 +75,6 @@ class BaseExperiment(object):
         """
         准备数据集和数据加载器
         """
-        print('step:2.1---->准备数据集和数据加载器')
         return BaseDataModule(self.config)
 
     def _init_trainer(self, args, callbacks, strategy):
@@ -88,7 +86,7 @@ class BaseExperiment(object):
             strategy (): 分布式训练测量
         Returns:
         """
-        print('初始化Trainer')
+        print('exp---->init trainer')
         # logger = TensorBoardLogger(
         #     save_dir=self.save_dir,
         #     name='logger'
@@ -100,7 +98,6 @@ class BaseExperiment(object):
             log_model=False, # 不记录模型
         )
         return Trainer(
-
             strategy=strategy,  # 分布式策略，如 'ddp','deepspeed_stage_2','ddp_find_unused_parameters_false'
             # accelerator='gpu',
             # devices=args.gpus,  # 使用指定的GPU
@@ -124,10 +121,9 @@ class BaseExperiment(object):
             ckpt_dir (): 检查点目录
         Returns:
         """
-        print('加载训练过程中的回调函数')
+        print('exp---->loading callbacks')
         method_info = None
         # 显示方法信息
-        print('step:2.3.1---->获取方法信息')
         if not args.no_display_method_info:
             method_info = self.display_method_info(args)
 
@@ -171,27 +167,52 @@ class BaseExperiment(object):
             args (): 实验参数
         Returns:
         """
-        print(f'训练方法: {args.method}')
+        print(f'exp---->{args.method} compute method info')
         device = torch.device(args.device)
         if args.device == 'cuda':
             assign_gpu = 'cuda:' + (str(args.gpus[0]) if len(args.gpus) == 1 else '0')
             device = torch.device(assign_gpu)
 
         # 根据不同方法构造输入数据
-        if args.method in ['sc-depth']:
+        if args.method in ['sc-depth','darknet']:
             input_dummy = torch.ones(1, args.channels, args.height, args.width).to(device)
-        elif args.method in ['darknet']:
+
+            # 获取方法的描述信息、计算FLOPs、获取吞吐量————只计算深度网络
+            dash_line = '-' * 80 + '\n'
+            info = self.method.__repr__()  # 模型信息
+
+            flops = FlopCountAnalysis(self.method.depth_net.to(device), input_dummy)  # 计算FLOPs
+            flops = flop_count_table(flops)  # 获取FLOPs表格
+            if args.fps:
+                fps = measure_throughput(self.method.depth_net.to(device), input_dummy)  # 计算吞吐量
+                fps = 'Throughputs of {}: {:.3f}\n'.format(args.method, fps)
+            else:
+                fps = ''
+
+        elif args.method in ['sql-depth']:
             input_dummy = torch.ones(1, args.channels, args.height, args.width).to(device)
+            # 获取方法的描述信息、计算FLOPs、获取吞吐量————只计算深度网络
+            dash_line = '-' * 80 + '\n'
+            info = self.method.models.__repr__()  # 模型信息
+            encoder = self.method.models['encoder'].to(device)
+            depth = self.method.models['depth'].to(device)
+
+            encoder_flops = FlopCountAnalysis(encoder, input_dummy)
+            encoder_flops = flop_count_table(encoder_flops)
+
+            # encoder 输出特征图
+            with torch.no_grad():
+                encoder_output = encoder(input_dummy)
+
+            depth_flops = FlopCountAnalysis(depth, encoder_output)
+            depth_flops = flop_count_table(depth_flops)
+
+            flops = f"Encoder FLOPs:\n{encoder_flops}\nDepth FLOPs:\n{depth_flops}"
+            if args.fps:
+                fps = measure_throughput(self.method, input_dummy)  # 计算吞吐量
+                fps = 'Throughputs of {}: {:.3f}\n'.format(args.method, fps)
+            else:
+                fps = ''
         else:
             raise ValueError(f'Invalid method name {args.method}')
-        # 获取方法的描述信息、计算FLOPs、获取吞吐量————只计算深度网络
-        dash_line = '-' * 80 + '\n'
-        info = self.method.__repr__()  # 模型信息
-        flops = FlopCountAnalysis(self.method.depth_net.to(device), input_dummy)  # 计算FLOPs
-        flops = flop_count_table(flops)  # 获取FLOPs表格
-        if args.fps:
-            fps = measure_throughput(self.method.depth_net.to(device), input_dummy)  # 计算吞吐量
-            fps = 'Throughputs of {}: {:.3f}\n'.format(args.method, fps)
-        else:
-            fps = ''
         return info, flops, fps, dash_line  # 返回方法信息、FLOPs、吞吐量以及分隔线

@@ -33,7 +33,7 @@ class BaseDataModule(LightningDataModule):
                 - cfg.folder_type: 数据类型。sequence or pair。
         """
         super().__init__()
-        print('step:2.1.1---->初始化数据加载模块')
+
         # 保存超参数
         self.save_hyperparameters()
         self.train_dataset = None
@@ -97,6 +97,7 @@ class BaseDataModule(LightningDataModule):
                           drop_last=True,  # 丢弃最后一个不完整的批次
                           )
 
+
     def val_dataloader(self):
         """
         验证数据加载器
@@ -127,7 +128,6 @@ class BaseDataModule(LightningDataModule):
         :param stage:(str, optional) 数据准备阶段。可用于多阶段处理（如训练、验证或测试阶段）
         :return:
         """
-        print('step:2.1.2---->设置数据集和数据加载器')
         # 训练数据集
         self.train_dataset = self.get_train_dataset()
         self.val_dataset = self.get_val_dataset()
@@ -135,6 +135,7 @@ class BaseDataModule(LightningDataModule):
         self.test_dataset = self.get_test_dataset()
 
     def get_train_dataset(self):
+
         if self.cfg.dataset_name in dataset_key:
             return dataset_map[self.cfg.dataset_name](
                 cfg=self.cfg,
@@ -142,7 +143,7 @@ class BaseDataModule(LightningDataModule):
                 transform=self.train_transform,
             )
         else:
-            return TrainSet(
+            train_dataset = TrainSet(
                 root=self.cfg.dataset_dir,
                 train=True,
                 sequence_length=self.cfg.sequence_length,
@@ -154,6 +155,8 @@ class BaseDataModule(LightningDataModule):
                 img_suffix=self.cfg.img_suffix,
                 depth_suffix=self.cfg.depth_suffix,
             )
+            print(f'datasets---->train dataset len:{len(train_dataset)}')
+            return train_dataset
 
     def get_val_dataset(self):
         if self.cfg.dataset_name in dataset_key:
