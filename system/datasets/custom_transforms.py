@@ -29,7 +29,7 @@ class Normalize(object):
     归一化操作
     """
 
-    def __init__(self, mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]):
+    def __init__(self, mean=[0.45, 0.45, 0.45], std=[0.225, 0.225, 0.225]):
         # 初始化时设置归一化的均值的标准差
         self.mean = mean
         self.std = std

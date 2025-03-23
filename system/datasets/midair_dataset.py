@@ -298,7 +298,7 @@ if __name__ == '__main__':
                             num_samples=1 * 1002)  # 计算需要的样本数量
     data_loader = DataLoader(dataset,  # 数据集
                       batch_size=1,  # 批次大小
-                      num_workers=6,  # 加载数据时使用的线程数
+                      num_workers=0,  # 加载数据时使用的线程数
                       pin_memory=True,  # 使用固定内存，提升数据加载速度
                       sampler=sampler,  # 随机采样
                       drop_last=True,  # 丢弃最后一个不完整的批次

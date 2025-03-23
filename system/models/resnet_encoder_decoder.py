@@ -148,10 +148,13 @@ class UpSampleBN(nn.Module):
             nn.LeakyReLU(),
         )
 
-    def forward(self, x,concat_with):
-        up_x = F.interpolate(x, size=[concat_with.size(2), concat_with.size(3)],
-                             mode='bilinear', align_corners=True)
-        f = torch.cat([up_x, concat_with], dim=1)
+    def forward(self, x,concat_with=None):
+        if concat_with is not None:
+            up_x = F.interpolate(x, size=[concat_with.size(2), concat_with.size(3)],
+                                 mode='bilinear', align_corners=True)
+            f = torch.cat([up_x, concat_with], dim=1)
+        else:
+            f = x
         return self._net(f)
 
 
@@ -172,7 +175,7 @@ class DecoderBN(nn.Module):
         self.up1 = UpSampleBN(in_channels=features//1+1024,out_channels=features//2) # in:512+1024 out:256
         self.up2 = UpSampleBN(in_channels=features//2+512,out_channels=features//4) # in:256+512 out:128
         self.up3 = UpSampleBN(in_channels=features//4+256,out_channels=features//8) # in:128+256 out:64
-        self.up4 = UpSampleBN(in_channels=features//8+64,out_channels=features//16) # in:46+64 out:32=num_classes
+        self.up4 = UpSampleBN(in_channels=features//8+64,out_channels=features//16) # in:64+64 out:32=num_classes
 
         self.conv3 = nn.Conv2d(features//16,num_classes,
                                kernel_size=3,stride=1,padding=1)
@@ -194,6 +197,7 @@ class DecoderBN(nn.Module):
         x_d2 = self.up2(x_d1,x_block2) # 256+512-> 128
         x_d3 = self.up3(x_d2,x_block1) # 128+256-> 64
         x_d4 = self.up4(x_d3,x_block0) # 64+64-> 32
+
         # 通过最终卷积生成预测输出
         out = self.conv3(x_d4)
         return out
@@ -217,3 +221,8 @@ class ResnetEncoderDecoder(nn.Module):
         x = self.decoder(x,**kwargs)
         return x
 
+if __name__ == '__main__':
+    model = ResnetEncoderDecoder(num_layers=50,num_features=512,model_dim=32)
+    text_x = torch.randn(1, 3, 224, 224)
+    model.eval()
+    text_y = model(text_x)

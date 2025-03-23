@@ -66,8 +66,8 @@ def compute_depth_errors(valid_gt, valid_pred, min_depth, max_depth):
 
     # rmse_log = torch.sqrt(torch.mean(torch.pow(torch.log(valid_gt) - torch.log(valid_pred), 2)))
     # log10 = torch.mean(torch.abs(torch.log10(valid_gt) - torch.log10(valid_pred)))
-    metrics['rmse_log'] = torch.sqrt(torch.mean(torch.pow(torch.log(valid_gt) - torch.log(valid_pred), 2)))
-    metrics['log10'] = torch.mean(torch.abs(torch.log10(valid_gt) - torch.log10(valid_pred)))
+    metrics['de/rmse_log'] = torch.sqrt(torch.mean(torch.pow(torch.log(valid_gt) - torch.log(valid_pred), 2)))
+    metrics['de/log10'] = torch.mean(torch.abs(torch.log10(valid_gt) - torch.log10(valid_pred)))
     # return a1, a2, a3, abs_diff, abs_rel, sq_rel, rmse, rmse_log, log10
     return metrics
 
@@ -85,8 +85,8 @@ def compute_metrics(gt, pred, dataset):
     # abs_diff = abs_rel = sq_rel = rmse = rmse_log = a1 = a2 = a3 = log10 = 0
     # 使用字典来存储所有指标的累加值
 
-    # metrics = {'da/a1': 0, 'da/a2': 0, 'da/a3': 0, 'de/abs_diff': 0, 'de/abs_rel': 0,
-    #            'de/sq_rel': 0, 'de/rmse': 0, 'de/rmse_log': 0, 'de/log10': 0}
+    metrics = {'da/a1': 0, 'da/a2': 0, 'da/a3': 0, 'de/abs_diff': 0, 'de/abs_rel': 0,
+               'de/sq_rel': 0, 'de/rmse': 0, 'de/rmse_log': 0, 'de/log10': 0}
     batch_size, h, w = gt.shape
     valid_samples = 0  # 用于统计有效样本的数量
 

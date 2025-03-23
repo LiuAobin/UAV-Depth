@@ -13,6 +13,7 @@ from system.utils import (print_log, transformation_from_parameters, convert_K_t
 from system.core import compute_metrics
 from system.models import ResnetEncoderDecoder,PoseCNN,DepthDecoderQueryTr
 from system.loss import get_smooth_loss,compute_reprojection_loss
+from path import Path
 
 class SQLDepth(BaseMethod):
 
@@ -37,6 +38,12 @@ class SQLDepth(BaseMethod):
             num_features = self.config.num_features,
             model_dim = self.config.model_dim,
         )
+        # 加载编码器预训练模型
+        # encoder_path = Path('./pretrained_model/encoder.pth')
+        # # print(encoder_path.absolute())
+        # loaded_dict_enc = torch.load(encoder_path,map_location=self.config.device)
+        # filtered_dict_enc = {k:v for k,v in loaded_dict_enc.items() if k in self.models['encoder'].state_dict()}
+        # self.models['encoder'].load_state_dict(filtered_dict_enc)
         # 加载深度解码器
         self.models['depth'] = DepthDecoderQueryTr(
             in_channels = self.config.model_dim,
@@ -48,8 +55,16 @@ class SQLDepth(BaseMethod):
             min_val = self.config.min_depth,
             max_val = self.config.max_depth
         )
+        # 加载深度估计模块预训练模型
+        # depth_decoder_path = Path('./pretrained_model/depth.pth')
+        # loaded_dict_enc = torch.load(depth_decoder_path, map_location=self.config.device)
+        # filtered_dict_enc = {k: v for k, v in loaded_dict_enc.items() if k in self.models['depth'].state_dict()}
+        # self.models['depth'].load_state_dict(filtered_dict_enc)
         # 加载姿态估计模型
         self.models['pose'] = PoseCNN(2)
+        self.encoder = self.models['encoder']
+        self.depth = self.models['depth']
+        self.pose = self.models['pose']
 
     def _build_projection(self):
         # 创建一个字典，用于存储不同尺度下的反向投影深度
@@ -78,7 +93,7 @@ class SQLDepth(BaseMethod):
                 'de/abs_rel':MeanMetric().to(self.device),
                 'de/sq_rel':MeanMetric().to(self.device),
                 'de/rmse':MeanMetric().to(self.device),
-                'de/log_10':MeanMetric().to(self.device),
+                'de/log10':MeanMetric().to(self.device),
                 'de/rmse_log':MeanMetric().to(self.device),
                 'da/a1':MeanMetric().to(self.device),
                 'da/a2':MeanMetric().to(self.device),
@@ -93,7 +108,7 @@ class SQLDepth(BaseMethod):
         else:
             raise NotImplementedError
 
-    def on_train_start(self) -> None:
+    def on_train_start(self):
         """
         监控模型
         """
@@ -142,7 +157,7 @@ class SQLDepth(BaseMethod):
             for key,value in metrics.items():
                self.val_metrics[key].update(value)
             # 可视化
-            if batch_idx % 1000 == 0:
+            if batch_idx % 50 == 0:
                 self.log_visualization(tgt_img, gt_depth,depth, batch_idx)
 
         elif self.config.val_mode == 'photo':  # 光度损失验证模式
@@ -165,14 +180,14 @@ class SQLDepth(BaseMethod):
         else:
             raise ValueError(f'Invalid validation mode: {self.config.val_mode}')
 
-    def on_validation_epoch_end(self) -> None:
+    def on_validation_epoch_end(self):
         # 计算验证集的平均指标并记录到日志
         avg_metrics = {key: metric.compute() for key, metric in self.val_metrics.items()}
-        self.log_dict(avg_metrics, logger=True, on_epoch=True, on_step=False)
+        wandb.log(avg_metrics, step=self.current_epoch)
 
         # 记录模型验证的损失
         if self.config.val_mode == 'depth':
-            self.log('val_loss', avg_metrics['abs_diff'], on_epoch=True, on_step=False,logger=False)
+            self.log('val_loss', avg_metrics['de/abs_diff'], on_epoch=True, on_step=False,logger=False)
         elif self.config.val_mode == 'photo':
             self.log('val_loss', avg_metrics['loss'], on_epoch=True, on_step=False,logger=False)
         else:
@@ -181,7 +196,7 @@ class SQLDepth(BaseMethod):
         for metric in self.val_metrics.values():
             metric.reset()
 
-    def on_test_start(self) -> None:
+    def on_test_start(self):
         for metrics in self.val_metrics.values():
             metrics.reset()
 
@@ -197,7 +212,7 @@ class SQLDepth(BaseMethod):
         for key, value in metrics.items():
             self.val_metrics[key].update(value)
 
-    def on_test_epoch_end(self) -> None:
+    def on_test_epoch_end(self):
         avg_metrics = {key: metric.compute() for key, metric in self.val_metrics.items()}
         self.log_dict(avg_metrics, logger=True, on_epoch=True, on_step=False)
 
@@ -205,6 +220,7 @@ class SQLDepth(BaseMethod):
         features = self.models['encoder'](input)
         outputs = self.models['depth'](features)
         return outputs
+
     def forward(self, batch):
         return self.predict_depth(batch)
 
@@ -329,13 +345,13 @@ class SQLDepth(BaseMethod):
     def log_visualization(self,image,gt_depth,pred_depth,batch_idx):
         image = image[0].cpu()
         gt_depth = visualize_depth(gt_depth[0])
-        pred_depth = visualize_depth(pred_depth[0])
-
+        pred_depth = visualize_depth(pred_depth[0,0])
+        # 损失以epoch形式记录
         wandb.log({
-            f"img/val/input_image_{batch_idx}":wandb.Image(image,caption='RGB'),
-            f"img/val/gt_depth_{batch_idx}":wandb.Image(gt_depth,caption='GT'),
-            f"img/val/pred_depth_{batch_idx}":wandb.Image(pred_depth,caption='Ours')
-        })
+            f"input_image_{batch_idx}":wandb.Image(image,caption='RGB'),
+            f"gt_depth_{batch_idx}":wandb.Image(gt_depth,caption='GT'),
+            f"pred_depth_{batch_idx}":wandb.Image(pred_depth,caption='Ours')
+        },step=self.current_epoch)
 
 
 

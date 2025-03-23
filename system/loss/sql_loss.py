@@ -13,16 +13,21 @@ def get_smooth_loss(depth, image):
     Returns:
     """
     # 计算深度图梯度(水平和垂直方向)
+    mean_depth = depth.mean(dim=2, keepdim=True).mean(dim=3, keepdim=True)
+    norm_depth = depth/(mean_depth+1e-7)
+    depth = norm_depth
     grad_depth_x = torch.abs(depth[:, :, :, :-1] - depth[:, :, :, 1:]) # 水平方向
     grad_depth_y = torch.abs(depth[:, :, :-1, :] - depth[:, :, 1:, :])
+
     # 计算图像梯度的均值(通道均值)
     grad_img_x = torch.abs(image[:, :, :, :-1] - image[:, :, :, 1:])
     grad_img_x = torch.mean(grad_img_x,1,keepdim=True)
     grad_img_y = torch.abs(image[:, :, :-1, :] - image[:, :, 1:, :])
     grad_img_y = torch.mean(grad_img_y,1,keepdim=True)
+
     # 通过对图像梯度的指数衰减来加权图像梯度，抑制边缘区域的平滑约束
-    grad_depth_x *= torch.exp(-grad_depth_x)
-    grad_depth_y *= torch.exp(-grad_depth_y)
+    grad_depth_x *= torch.exp(-grad_img_x)
+    grad_depth_y *= torch.exp(-grad_img_y)
     # 返回水平方向和垂直方向的平均损失
     return grad_depth_x.mean()+grad_depth_y.mean()
 

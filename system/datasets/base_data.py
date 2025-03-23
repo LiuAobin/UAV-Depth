@@ -91,7 +91,7 @@ class BaseDataModule(LightningDataModule):
                                 num_samples=self.cfg.batch_size * self.cfg.epoch_size)  # 计算需要的样本数量
         return DataLoader(self.train_dataset,  # 数据集
                           batch_size=self.cfg.batch_size,  # 批次大小
-                          num_workers=self.cfg.num_threads,  # 加载数据时使用的线程数
+                          num_workers=0,  # 加载数据时使用的线程数
                           pin_memory=True,  # 使用固定内存，提升数据加载速度
                           sampler=sampler,  # 随机采样
                           drop_last=True,  # 丢弃最后一个不完整的批次
@@ -106,7 +106,8 @@ class BaseDataModule(LightningDataModule):
         """
         return DataLoader(self.val_dataset,  # 使用验证数据集
                           shuffle=False,  # 打乱数据
-                          num_workers=self.cfg.num_threads,  # 加载数据的工作线程数
+                          num_workers=0,  # 加载数据的工作线程数
+                          # num_workers=0,
                           batch_size=self.cfg.batch_size,  # 设置批次大小
                           pin_memory=True)  # 使用固定内存，提升数据加载速度
 
@@ -118,7 +119,7 @@ class BaseDataModule(LightningDataModule):
         """
         return DataLoader(self.test_dataset,  # 使用验证数据集
                           shuffle=False,  # 不打乱数据
-                          num_workers=self.cfg.num_threads,  # 加载数据的工作线程数
+                          num_workers=0,  # 加载数据的工作线程数
                           batch_size=self.cfg.batch_size,  # 设置批次大小
                           pin_memory=True)  # 使用固定内存，提升数据加载速度
 
